@@ -211,8 +211,8 @@ function setupMessageBridge() {
 
       case 'DRAG_START': {
         isDragging = true
+        const container = getContainer()!
         if (!isFloating) {
-          const container = getContainer()!
           Object.assign(container.style, {
             right: 'auto', left: `${window.innerWidth - 360}px`, top: '60px', height: '600px'
           })
@@ -222,8 +222,12 @@ function setupMessageBridge() {
           }
           isFloating = true
         }
-        dragOffsetX = event.data.offsetX ?? 180
-        dragOffsetY = event.data.offsetY ?? 20
+        // Offset must be computed from the container's page position, not the
+        // iframe-relative clientX/Y (which are only coincidentally correct when
+        // the panel is snapped full-height to the right edge).
+        const rect = container.getBoundingClientRect()
+        dragOffsetX = (event.data.offsetX ?? 0) + rect.left
+        dragOffsetY = (event.data.offsetY ?? 0) + rect.top
         if (iframe) iframe.style.pointerEvents = 'none'
         document.body.style.userSelect = 'none'
         break
