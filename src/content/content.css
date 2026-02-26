@@ -1,0 +1,2 @@
+/* Prevent host page styles bleeding into our root */
+#devlens-root, #devlens-root * { box-sizing: border-box; }
