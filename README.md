@@ -1,79 +1,114 @@
-# DevLens — Chrome Extension
+# DevLens
 
-Your personal all-in-one web developer browser extension, inspired by Hoverify.
+A professional browser extension for web designers and developers. Inspect, edit, and extract from any webpage — without leaving your browser.
 
-## Phase 1 Complete ✅
-Foundation is built: popup, floating panel, background worker, content script, keyboard shortcuts, and messaging system.
+-----
 
----
+## Tools
 
-## Quick Start
+### 🔍 Inspector
 
-### 1. Install dependencies
+Hover over any element to inspect it in real time. Click to lock it for editing.
+
+- **CSS properties** grouped by category (Layout, Spacing, Typography, Visual) with collapsible sections and property counts
+- **Live CSS editing** — click any value to edit it and see changes apply instantly on the page
+- **Custom CSS** — type freeform `property: value` pairs and apply them with ⌘↵
+- **Filter bar** — search across all properties and values instantly
+- **Per-row copy** — copy any single declaration with one click
+- **Box model tab** — flat grid view of margin, border, and padding with top/right/bottom/left breakdown
+- **Fonts tab** — family, size, weight, line-height, color with live preview and Google Fonts link
+- **HTML tab** — syntax-highlighted `outerHTML` editor with live editing and scroll-synced highlighting
+- **Breadcrumb navigation** — traverse ancestor and child elements, click the element chip to lock/unlock
+- **CSS variable resolution** — all `var(--x)` references shown with their computed values
+
+### 🎨 Color Eyedropper
+
+Pick colors from anywhere on the page and build a persistent palette.
+
+- Sample any pixel on screen
+- Color output in HEX, RGB, and HSL
+- Saved color history persists across sessions
+- One-click copy in any format
+
+### 🪙 Token Extractor
+
+Extract design tokens from any website’s stylesheet automatically.
+
+- Extracts colors, typography, spacing, shadows, border radii, and breakpoints
+- Export as CSS variables, JSON, Tailwind config, SCSS variables, or Style Dictionary
+- Detect CSS custom properties (`--vars`) and their resolved values
+
+### 🤖 AI Bridge *(planned — Phase 3)*
+
+Send any inspected element directly to an AI with full context pre-loaded. No copy-pasting.
+
+- One-click sends CSS, HTML, box model, and CSS variables as a structured prompt
+- Preset intents: “Explain this layout”, “Why is this breaking on mobile?”, “Convert to Tailwind”, “Improve accessibility”, or write a custom question
+- Option A: opens Claude.ai or ChatGPT with the prompt pre-filled (zero setup)
+- Option B: in-panel AI response via your own API key (no cost to DevLens)
+- Context depth control — send just the element, or include its full ancestor chain
+- Right-click context menu shortcut — inspect and ask in one gesture
+
+### 📐 Responsive Viewer *(planned — Phase 4)*
+
+Preview any page at multiple viewport sizes simultaneously.
+
+### 📸 Screenshot *(planned — Phase 5)*
+
+Capture full-page or element-level screenshots with annotation tools.
+
+### 📦 Assets *(planned — Phase 6)*
+
+Extract all images, SVGs, fonts, and other assets from a page with one click.
+
+### 🐛 Debug *(planned — Phase 7)*
+
+Inspect console output, network requests, and JavaScript errors from the panel.
+
+-----
+
+## Install
+
+### From a release
+
+1. Download `devlens-design-latest.zip` from the [Releases](../../releases) page
+1. Unzip the file
+1. Go to `chrome://extensions`
+1. Enable **Developer mode** (top-right toggle)
+1. Click **Load unpacked** and select the unzipped folder
+
+### From source
+
 ```bash
 npm install
+npm run build
 ```
 
-### 2. Build the extension
-```bash
-npm run build     # one-time build
-npm run dev       # watch mode (rebuilds on file changes)
-```
+Then load the `dist/` folder as an unpacked extension.
 
-### 3. Load in Chrome
-1. Go to `chrome://extensions`
-2. Enable **Developer mode** (top right toggle)
-3. Click **Load unpacked**
-4. Select the `dist/` folder
+-----
 
-### 4. Use it
-- Click the DevLens icon in your toolbar
-- Or press `Alt+Shift+D` to toggle the panel
-- Or press `Alt+Shift+I` to open Inspector
-- Or press `Alt+Shift+C` to open Color Eyedropper
+## Keyboard Shortcuts
 
----
+|Shortcut     |Action               |
+|-------------|---------------------|
+|`Alt+Shift+D`|Toggle DevLens panel |
+|`Alt+Shift+I`|Open Inspector       |
+|`Alt+Shift+C`|Open Color Eyedropper|
 
-## Project Structure
+-----
 
-```
-devlens/
-├── public/
-│   └── manifest.json          # Chrome Extension config
-├── src/
-│   ├── background/
-│   │   └── index.ts           # Service worker (post office)
-│   ├── content/
-│   │   ├── index.ts           # Injected into every page, mounts panel
-│   │   └── content.css        # Scoped styles for injected container
-│   ├── popup/
-│   │   ├── index.tsx          # Popup entry point
-│   │   ├── Popup.tsx          # Main popup UI
-│   │   └── popup.css          # Popup styles
-│   ├── panel/
-│   │   ├── index.tsx          # Panel entry point
-│   │   ├── Panel.tsx          # Floating side panel UI
-│   │   └── panel.css          # Panel styles
-│   ├── tools/
-│   │   ├── inspector/         # Phase 2
-│   │   ├── eyedropper/        # Phase 2
-│   │   ├── assets/            # Phase 3
-│   │   ├── responsive/        # Phase 4
-│   │   ├── screenshot/        # Phase 5
-│   │   └── debug/             # Phase 6
-│   └── shared/
-│       ├── store.ts           # Zustand global state
-│       └── messages.ts        # Message type definitions
-├── popup.html                 # Popup HTML entry
-├── panel.html                 # Panel HTML entry
-├── vite.config.ts             # Build config
-├── tailwind.config.js         # Tailwind config
-└── package.json
-```
+## Usage
 
----
+- Click the DevLens icon in your toolbar, or press `Alt+Shift+D`
+- The panel slides in from the right edge of your browser
+- Drag the handle to float the panel anywhere on screen
+- Press `Snap` to return it to the side
+- Switch tools using the sidebar icons
 
-## Architecture: How the parts talk
+-----
+
+## Architecture
 
 ```
 [Popup UI]  ──sendMessage──▶  [Background SW]  ──sendMessage──▶  [Content Script]
@@ -83,40 +118,112 @@ devlens/
                                                             (React app in iframe)
 ```
 
-- **Popup**: What you see when clicking the extension icon
-- **Background**: Service worker — routes messages, handles Chrome APIs
-- **Content Script**: Injected into every page — mounts the panel iframe
-- **Panel**: Full React app running inside the iframe on your page
+- **Popup** — toolbar icon UI, quick tool launcher
+- **Background** — service worker, routes messages between contexts
+- **Content script** — injected into every page, mounts the floating panel iframe
+- **Panel** — full React app running inside the iframe, hosts all tools
 
----
+-----
 
-## Keyboard Shortcuts
+## Project Structure
 
-| Shortcut | Action |
-|---|---|
-| `Alt+Shift+D` | Toggle DevLens panel |
-| `Alt+Shift+I` | Open Inspector |
-| `Alt+Shift+C` | Open Color Eyedropper |
+```
+devlens/
+├── public/
+│   ├── manifest.json
+│   └── icons/
+├── src/
+│   ├── background/        # Service worker
+│   ├── content/           # Page injection + panel mount
+│   ├── panel/             # Root panel shell + navigation
+│   ├── popup/             # Toolbar popup
+│   ├── shared/            # Theme, messaging, hooks, clipboard
+│   └── tools/
+│       ├── inspector/     # Element inspector + CSS editor
+│       ├── eyedropper/    # Color picker
+│       ├── tokens/        # Design token extractor
+│       ├── ai-bridge/     # AI context tool (planned)
+│       ├── responsive/    # Viewport previewer (planned)
+│       ├── screenshot/    # Screenshot tool (planned)
+│       ├── assets/        # Asset extractor (planned)
+│       └── debug/         # Debug console (planned)
+├── panel.html
+├── popup.html
+├── vite.config.ts
+├── tailwind.config.js
+└── package.json
+```
 
----
+-----
 
 ## Roadmap
 
-| Phase | Features | Status |
-|---|---|---|
-| 1 | Foundation, popup, panel, shortcuts | ✅ Done |
-| 2 | Inspector + Color Eyedropper | 🔜 Next |
-| 3 | Assets Extractor | ⏳ Planned |
-| 4 | Responsive Viewer | ⏳ Planned |
-| 5 | Screenshot + Editor | ⏳ Planned |
-| 6 | Debug Tools | ⏳ Planned |
+|Phase|Tool                                                 |Status   |
+|-----|-----------------------------------------------------|---------|
+|1    |Foundation — popup, panel, shortcuts, messaging      |✅ Done   |
+|2    |Inspector + Color Eyedropper + Token Extractor       |✅ Done   |
+|3    |AI Bridge — send element context to AI with one click|⏳ Planned|
+|4    |Responsive Viewer                                    |⏳ Planned|
+|5    |Screenshot + Editor                                  |⏳ Planned|
+|6    |Assets Extractor                                     |⏳ Planned|
+|7    |Debug Tools                                          |⏳ Planned|
 
----
+### Phase 3 — AI Bridge: Requirements
 
-## Icons
-You'll need to add placeholder icons at:
-- `public/icons/icon16.png`
-- `public/icons/icon48.png`  
-- `public/icons/icon128.png`
+**What it needs**
 
-You can use any 🔵 colored square PNG for now. A proper icon will be added later.
+- Prompt formatter that structures CSS, HTML, box model, variables, and breadcrumb ancestors into a clean, readable prompt
+- Intent selector — preset questions or free text input
+- AI target selector — Claude.ai first, ChatGPT later
+- Two delivery modes: link-out (Option A, zero setup) and in-panel via API key (Option B)
+- Right-click context menu on the element highlight overlay
+
+**Prompt format**
+
+```
+I'm inspecting an element on a webpage. Here is its context:
+
+ELEMENT: <a class="btn btn-primary" href="/checkout">
+
+CSS (matched rules):
+  display: flex
+  align-items: center
+  padding: 12px 24px
+  background: linear-gradient(...)
+
+BOX MODEL:
+  margin: 0 0 16px 0
+  padding: 12px 24px
+  width: 280px, height: 44px
+
+CSS VARIABLES IN USE:
+  --primary: #6366f1
+  --radius: 8px
+
+QUESTION: Why is this element not vertically centered in its parent?
+```
+
+**Build order**
+
+1. Prompt formatter function
+1. Intent selector UI
+1. Option A — link-out to Claude.ai
+1. Option B — in-panel response via user API key
+1. Right-click context menu integration
+
+**Decision needed before build starts**
+
+- Option A or B first?
+- Where does the button live — Inspector header, dedicated AI tab, or both?
+- Preset intents only, or free text too?
+- How deep should the context go — element only, or full ancestor chain?
+
+-----
+
+## Stack
+
+- **React** + **TypeScript**
+- **Tailwind CSS**
+- **Vite**
+- **Lucide Icons**
+- **Chrome Extensions Manifest V3**
