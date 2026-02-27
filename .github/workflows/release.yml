@@ -3,7 +3,7 @@ name: Build & Release
 on:
   push:
     branches:
-      - design
+      - design/ux-improvements
 
 jobs:
   release:
