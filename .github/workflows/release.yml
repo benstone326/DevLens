@@ -21,6 +21,7 @@ jobs:
       - name: Install & Build
         run: |
           npm install
+          chmod +x node_modules/.bin/vite
           npx vite build
 
       - name: Zip dist
