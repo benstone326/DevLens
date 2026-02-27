@@ -13,12 +13,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
       - name: Install & Build
         run: |
           npm install
@@ -41,6 +35,6 @@ jobs:
             --title "DevLens Design Branch — Latest" \
             --notes "Auto-built from the \`design\` branch on $(date -u '+%Y-%m-%d %H:%M UTC')" \
             --prerelease \
-            --target design
+            --target design/ux-improvements
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
