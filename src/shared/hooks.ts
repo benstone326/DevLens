@@ -1,11 +1,7 @@
 import { useState, useCallback } from 'react'
 
-/**
- * useHover — returns [isHovered, hoverProps]
- * Replaces inline onMouseEnter/Leave style mutations throughout the codebase.
- * Components use the boolean to derive styles declaratively instead of
- * imperatively mutating element.style inside event handlers.
- */
+// Replaces inline onMouseEnter/Leave style mutations.
+// Returns [isHovered, hoverProps] — spread hoverProps onto any element.
 export function useHover() {
   const [isHovered, setIsHovered] = useState(false)
   const hoverProps = {
