@@ -13,6 +13,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: Install & Build
         run: |
           npm install
@@ -27,7 +32,7 @@ jobs:
         run: gh release delete latest --yes --cleanup-tag
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true   # first run has nothing to delete
+        continue-on-error: true
 
       - name: Create release
         run: |
