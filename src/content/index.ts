@@ -170,6 +170,24 @@ function setupMessageBridge() {
         postToPanel({ type: 'INSPECTOR_UNLOCKED' })
         break
 
+      // Design idea C: panel can lock/unlock element without a page click
+      case 'LOCK_ELEMENT': {
+        const el = (window as any).__devlens_last_hovered as Element | null
+        if (el) {
+          ;(window as any).__devlens_locked_el = el
+          ;(window as any).__devlens_original_styles = (el as HTMLElement).getAttribute('style') ?? ''
+          postToPanel({ type: 'INSPECTOR_LOCKED' })
+        }
+        break
+      }
+
+      case 'UNLOCK_ELEMENT': {
+        ;(window as any).__devlens_locked_el = null
+        ;(window as any).__devlens_original_styles = null
+        postToPanel({ type: 'INSPECTOR_UNLOCKED' })
+        break
+      }
+
       case 'SET_BOX_MODE': {
         setBoxMode(event.data.enabled as boolean)
         const el = (window as any).__devlens_locked_el as Element | null

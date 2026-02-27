@@ -318,6 +318,8 @@ function showBoxOverlay(el: Element) {
 function onMouseMove(e: MouseEvent) {
   const target = e.target as Element
   if (!target || target.closest('#devlens-root') || target.id === 'devlens-inspector-overlay') return
+  // Track last hovered element so LOCK_ELEMENT message handler can lock it
+  ;(window as any).__devlens_last_hovered = target
   if (isLocked) {
     // Show hover highlight without touching locked overlay or panel data
     highlightHover(target)
