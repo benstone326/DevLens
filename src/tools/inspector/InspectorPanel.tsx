@@ -256,6 +256,92 @@ function StyleGroup({ label, entries, changed, canEdit, onChange, onReset }: {
   )
 }
 
+
+// ─── CustomCSSBlock ───────────────────────────────────────────────────────────
+// Lets the user type freeform CSS (property: value pairs, one per line)
+// and applies them live to the locked element.
+function CustomCSSBlock({ canEdit }: { canEdit: boolean }) {
+  const [text, setText] = useState('')
+  const [applied, setApplied] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function applyCSS() {
+    if (!canEdit) return
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+    const valid: [string, string][] = []
+    const invalid: string[] = []
+    for (const line of lines) {
+      const colonIdx = line.indexOf(':')
+      if (colonIdx < 1) { invalid.push(line); continue }
+      const prop = line.slice(0, colonIdx).trim()
+      const val  = line.slice(colonIdx + 1).replace(/;\s*$/, '').trim()
+      if (!prop || !val) { invalid.push(line); continue }
+      valid.push([prop, val])
+    }
+    if (invalid.length > 0) {
+      setError(`Invalid lines: ${invalid.join(', ')}`)
+      return
+    }
+    setError(null)
+    for (const [prop, val] of valid) {
+      window.parent.postMessage({ source: 'devlens-panel', type: 'APPLY_STYLE', prop, value: val }, '*')
+    }
+    setApplied(true)
+    setTimeout(() => setApplied(false), 1500)
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    // Ctrl/Cmd + Enter to apply
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault()
+      applyCSS()
+    }
+  }
+
+  if (!canEdit) return null
+
+  return (
+    <div className="px-3 pb-3">
+      <div className="rounded-xl overflow-hidden"
+           style={{ border: `1px solid ${error ? '#f43f5e44' : applied ? '#10b98144' : '#1e293b'}`, background: '#0a0f1a' }}>
+        <div className="flex items-center gap-2 px-3 py-1.5"
+             style={{ borderBottom: '1px solid #1e293b' }}>
+          <span className="text-[9px] font-semibold tracking-widest uppercase" style={{ color: '#475569' }}>
+            Custom CSS
+          </span>
+          <span className="text-[9px] ml-auto" style={{ color: '#334155' }}>⌘↵ to apply</span>
+        </div>
+        <textarea
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          readOnly={!canEdit}
+          spellCheck={false}
+          placeholder={"color: red;\nfont-size: 14px;"}
+          rows={3}
+          className="w-full bg-transparent outline-none text-[11px] font-mono leading-5 resize-none px-3 py-2"
+          style={{ color: '#fde68a', caretColor: '#818cf8' }}
+        />
+        <div className="flex items-center gap-2 px-3 py-1.5" style={{ borderTop: '1px solid #1e293b' }}>
+          {error && <span className="text-[9px] flex-1" style={{ color: '#f43f5e' }}>{error}</span>}
+          <button
+            onClick={applyCSS}
+            className="ml-auto flex items-center gap-1 text-[10px] px-3 py-1 rounded-lg transition-colors"
+            style={{
+              background: applied ? '#10b98118' : '#6366f118',
+              color:      applied ? '#10b981'   : '#818cf8',
+              border:    `1px solid ${applied ? '#10b98144' : '#6366f133'}`,
+            }}
+          >
+            {applied ? <Check size={9} /> : null}
+            {applied ? 'Applied!' : 'Apply'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── StylesBlock ──────────────────────────────────────────────────────────────
 function StylesBlock({ styles, cssVars, canEdit }: {
   styles:  Record<string, string>
@@ -388,6 +474,7 @@ function StylesBlock({ styles, cssVars, canEdit }: {
       )}
 
       <VarsTable cssVars={cssVars} />
+      <CustomCSSBlock canEdit={canEdit} />
     </div>
   )
 }
@@ -477,8 +564,17 @@ function HTMLBlock({ html, canEdit }: { html: string; canEdit: boolean }) {
     setTimeout(() => setCopied(false), 1500)
   }
 
-  const editorHeight = Math.max(160, code.split('\n').length * 20 + 24)
-  const highlighted  = useMemo(() => highlightHtml(code), [code])
+  // Memoized — only recomputes syntax highlighting when code changes, not on every render
+  const highlighted = useMemo(() => highlightHtml(code), [code])
+
+  // Both pre and textarea must have identical layout so selection highlight aligns.
+  // Key rules:
+  //  - Same font, size, padding, line-height — already handled by shared classes
+  //  - Same overflow mode (overflow-auto on both, scroll synced)
+  //  - NO break-all on pre — textarea wraps at word boundaries, pre must match exactly
+  //  - Fixed min-height, grows with content
+  const minLines   = Math.max(8, code.split('\n').length)
+  const editorHeight = minLines * 20 + 24   // 20px per line (leading-5) + padding
 
   return (
     <div className="p-3">
@@ -514,7 +610,8 @@ function HTMLBlock({ html, canEdit }: { html: string; canEdit: boolean }) {
         <pre
           ref={preRef}
           aria-hidden
-          className="absolute inset-0 px-3 py-2.5 text-[11px] font-mono pointer-events-none overflow-hidden m-0 whitespace-pre-wrap break-all leading-5"
+          className="absolute inset-0 px-3 py-2.5 text-[11px] font-mono pointer-events-none m-0 leading-5"
+          style={{ overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'normal', overflowWrap: 'anywhere' }}
         >
           {highlighted}
         </pre>
@@ -526,7 +623,8 @@ function HTMLBlock({ html, canEdit }: { html: string; canEdit: boolean }) {
           readOnly={!canEdit}
           spellCheck={false}
           className="absolute inset-0 w-full h-full px-3 py-2.5 text-[11px] font-mono resize-none outline-none bg-transparent leading-5"
-          style={{ color: 'transparent', caretColor: '#818cf8', cursor: canEdit ? 'text' : 'default', zIndex: 1 }}
+          style={{ color: 'transparent', caretColor: '#818cf8', cursor: canEdit ? 'text' : 'default',
+                   zIndex: 1, overflow: 'auto', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
         />
       </div>
     </div>
