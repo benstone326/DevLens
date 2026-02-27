@@ -1,6 +1,11 @@
 import { startInspector, stopInspector, extractElementData, navigateLocked, setBoxMode } from '../tools/inspector/index'
 import { extractTokens } from '../tools/tokens/index'
 
+// Temporarily pause/resume inspector hover highlighting during drag
+function setInspectorEnabled(enabled: boolean) {
+  ;(window as any).__devlens_inspector_enabled = enabled
+}
+
 // Guard against double-injection
 if ((window as any).__devlens_loaded) throw new Error('[DevLens] Already loaded')
 ;(window as any).__devlens_loaded = true
@@ -211,23 +216,37 @@ function setupMessageBridge() {
 
       case 'DRAG_START': {
         isDragging = true
+        // Disable inspector highlighting while dragging
+        setInspectorEnabled(false)
         const container = getContainer()!
+        const rect = container.getBoundingClientRect()
         if (!isFloating) {
+          // Snap to floating: position so the panel appears under the cursor.
+          // We use the mouse position sent from the iframe (iframe-local coords)
+          // plus the iframe's current left edge to get page-level mouse coords.
+          const mousePageX = rect.left + (event.data.offsetX ?? 0)
+          const mousePageY = rect.top  + (event.data.offsetY ?? 0)
+          const floatLeft = Math.max(0, Math.min(window.innerWidth - 360, mousePageX - 180))
+          const floatTop  = Math.max(0, mousePageY - 20)
           Object.assign(container.style, {
-            right: 'auto', left: `${window.innerWidth - 360}px`, top: '60px', height: '600px'
+            right: 'auto',
+            left: `${floatLeft}px`,
+            top:  `${floatTop}px`,
+            height: '600px',
           })
           if (iframe) {
             iframe.style.borderRadius = '16px'
             iframe.style.boxShadow = '0 8px 48px rgba(0,0,0,0.4)'
           }
           isFloating = true
+          // Offset = where the cursor sits inside the newly-placed container
+          dragOffsetX = mousePageX - floatLeft
+          dragOffsetY = mousePageY - floatTop
+        } else {
+          // Already floating — offset = where mouse is within the container
+          dragOffsetX = (event.data.offsetX ?? 0)
+          dragOffsetY = (event.data.offsetY ?? 0)
         }
-        // Offset must be computed from the container's page position, not the
-        // iframe-relative clientX/Y (which are only coincidentally correct when
-        // the panel is snapped full-height to the right edge).
-        const rect = container.getBoundingClientRect()
-        dragOffsetX = (event.data.offsetX ?? 0) + rect.left
-        dragOffsetY = (event.data.offsetY ?? 0) + rect.top
         if (iframe) iframe.style.pointerEvents = 'none'
         document.body.style.userSelect = 'none'
         break
@@ -254,6 +273,7 @@ function setupDrag() {
 
 function stopDrag() {
   isDragging = false
+  setInspectorEnabled(true)
   const iframe = getIframe()
   if (iframe) iframe.style.pointerEvents = 'all'
   document.body.style.userSelect = ''

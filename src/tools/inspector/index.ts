@@ -316,6 +316,8 @@ function showBoxOverlay(el: Element) {
 }
 
 function onMouseMove(e: MouseEvent) {
+  // Suppress all highlighting during panel drag
+  if ((window as any).__devlens_inspector_enabled === false) return
   const target = e.target as Element
   if (!target || target.closest('#devlens-root') || target.id === 'devlens-inspector-overlay') return
   if (isLocked) {
