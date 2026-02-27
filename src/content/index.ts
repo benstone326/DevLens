@@ -220,18 +220,26 @@ function setupMessageBridge() {
         setInspectorEnabled(false)
         const container = getContainer()!
         const rect = container.getBoundingClientRect()
+        // offsetX/Y = mouse position inside the iframe (iframe-local coords).
+        // Since the iframe fills the container 1:1, these are exactly how far
+        // the cursor is from the container's top-left corner.
+        // Using them as dragOffset directly keeps whatever spot the user grabbed
+        // pinned under the cursor throughout the drag — both on first snap and
+        // while already floating.
+        dragOffsetX = event.data.offsetX ?? 0
+        dragOffsetY = event.data.offsetY ?? 0
+
         if (!isFloating) {
-          // Snap to floating: position so the panel appears under the cursor.
-          // We use the mouse position sent from the iframe (iframe-local coords)
-          // plus the iframe's current left edge to get page-level mouse coords.
-          const mousePageX = rect.left + (event.data.offsetX ?? 0)
-          const mousePageY = rect.top  + (event.data.offsetY ?? 0)
-          const floatLeft = Math.max(0, Math.min(window.innerWidth - 360, mousePageX - 180))
-          const floatTop  = Math.max(0, mousePageY - 20)
+          // Place the floating container so the grab point stays under the cursor:
+          //   containerLeft = mousePageX - dragOffsetX
+          const mousePageX = rect.left + dragOffsetX
+          const mousePageY = rect.top  + dragOffsetY
+          const floatLeft = Math.max(0, Math.min(window.innerWidth  - 360, mousePageX - dragOffsetX))
+          const floatTop  = Math.max(0, Math.min(window.innerHeight - 600, mousePageY - dragOffsetY))
           Object.assign(container.style, {
-            right: 'auto',
-            left: `${floatLeft}px`,
-            top:  `${floatTop}px`,
+            right:  'auto',
+            left:   `${floatLeft}px`,
+            top:    `${floatTop}px`,
             height: '600px',
           })
           if (iframe) {
@@ -239,13 +247,6 @@ function setupMessageBridge() {
             iframe.style.boxShadow = '0 8px 48px rgba(0,0,0,0.4)'
           }
           isFloating = true
-          // Offset = where the cursor sits inside the newly-placed container
-          dragOffsetX = mousePageX - floatLeft
-          dragOffsetY = mousePageY - floatTop
-        } else {
-          // Already floating — offset = where mouse is within the container
-          dragOffsetX = (event.data.offsetX ?? 0)
-          dragOffsetY = (event.data.offsetY ?? 0)
         }
         if (iframe) iframe.style.pointerEvents = 'none'
         document.body.style.userSelect = 'none'
