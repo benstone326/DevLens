@@ -15,6 +15,7 @@ Hover over any element to inspect it in real time. Click to lock it for editing.
 - **Custom CSS** — type freeform `property: value` pairs and apply them with ⌘↵
 - **Filter bar** — search across all properties and values instantly
 - **Per-row copy** — copy any single declaration with one click
+- **Copy as Tailwind** — convert any element’s CSS to Tailwind utility classes instantly
 - **Box model tab** — flat grid view of margin, border, and padding with top/right/bottom/left breakdown
 - **Fonts tab** — family, size, weight, line-height, color with live preview and Google Fonts link
 - **HTML tab** — syntax-highlighted `outerHTML` editor with live editing and scroll-synced highlighting
@@ -49,17 +50,24 @@ Send any inspected element directly to an AI with full context pre-loaded. No co
 - Context depth control — send just the element, or include its full ancestor chain
 - Right-click context menu shortcut — inspect and ask in one gesture
 
-### 📐 Responsive Viewer *(planned — Phase 4)*
+### 📦 Assets *(planned — Phase 4)*
+
+Extract all images, SVGs, fonts, and other assets from a page with one click.
+
+- Download any asset directly from the panel
+- SVG optimization built in — every downloaded SVG is minified via SVGO before saving, production-ready immediately
+- Font detection with direct download links
+
+### 📐 Responsive Viewer *(planned — Phase 5)*
 
 Preview any page at multiple viewport sizes simultaneously.
 
-### 📸 Screenshot *(planned — Phase 5)*
+- Sync-scroll — scrolling one viewport scrolls all others in lockstep
+- Custom breakpoint presets
+
+### 📸 Screenshot *(planned — Phase 6)*
 
 Capture full-page or element-level screenshots with annotation tools.
-
-### 📦 Assets *(planned — Phase 6)*
-
-Extract all images, SVGs, fonts, and other assets from a page with one click.
 
 ### 🐛 Debug *(planned — Phase 7)*
 
@@ -143,9 +151,9 @@ devlens/
 │       ├── eyedropper/    # Color picker
 │       ├── tokens/        # Design token extractor
 │       ├── ai-bridge/     # AI context tool (planned)
+│       ├── assets/        # Asset extractor + SVG optimizer (planned)
 │       ├── responsive/    # Viewport previewer (planned)
 │       ├── screenshot/    # Screenshot tool (planned)
-│       ├── assets/        # Asset extractor (planned)
 │       └── debug/         # Debug console (planned)
 ├── panel.html
 ├── popup.html
@@ -158,15 +166,24 @@ devlens/
 
 ## Roadmap
 
-|Phase|Tool                                                 |Status   |
-|-----|-----------------------------------------------------|---------|
-|1    |Foundation — popup, panel, shortcuts, messaging      |✅ Done   |
-|2    |Inspector + Color Eyedropper + Token Extractor       |✅ Done   |
-|3    |AI Bridge — send element context to AI with one click|⏳ Planned|
-|4    |Responsive Viewer                                    |⏳ Planned|
-|5    |Screenshot + Editor                                  |⏳ Planned|
-|6    |Assets Extractor                                     |⏳ Planned|
-|7    |Debug Tools                                          |⏳ Planned|
+|Phase|Tool                                                 |Status       |
+|-----|-----------------------------------------------------|-------------|
+|1    |Foundation — popup, panel, shortcuts, messaging      |✅ Done       |
+|2    |Inspector + Color Eyedropper + Token Extractor       |✅ Done       |
+|2b   |Inspector UI redesign (Figma) + Copy as Tailwind     |🔄 In progress|
+|3    |AI Bridge — send element context to AI with one click|⏳ Planned    |
+|4    |Assets Extractor + SVG optimization (SVGO)           |⏳ Planned    |
+|5    |Responsive Viewer + sync-scroll                      |⏳ Planned    |
+|6    |Screenshot + Editor                                  |⏳ Planned    |
+|7    |Debug Tools                                          |⏳ Planned    |
+
+### Phase 2b — Inspector redesign: In progress
+
+- Implementing Figma design across both `master` and `design/ux-improvements` branches
+- New navigation sidebar with per-tool accent colors and active indicator strip
+- Code blocks component system replacing current dark panel
+- Collapsible CSS groups with checkboxes, color swatches, CSS var highlighting
+- Filter bar, copy-as-Tailwind button
 
 ### Phase 3 — AI Bridge: Requirements
 
@@ -211,12 +228,21 @@ QUESTION: Why is this element not vertically centered in its parent?
 1. Option B — in-panel response via user API key
 1. Right-click context menu integration
 
-**Decision needed before build starts**
+**Decisions needed before build starts**
 
 - Option A or B first?
 - Where does the button live — Inspector header, dedicated AI tab, or both?
 - Preset intents only, or free text too?
 - How deep should the context go — element only, or full ancestor chain?
+
+### Phase 4 — Assets + SVG Optimization
+
+**SVG optimization approach**
+
+- Bundle a browser-compatible build of SVGO (or reimplement its core passes)
+- Every SVG downloaded through DevLens is minified before saving
+- Removes editor metadata, empty groups, redundant attributes
+- Estimated scope: 2–3 weeks
 
 -----
 
