@@ -21,7 +21,7 @@ Hover over any element to inspect it in real time. Click to lock it for editing.
 - **Filter bar** — search across all properties and values instantly
 - **Per-row copy** — copy any single declaration with one click
 - **Box model tab** — flat grid view of margin, border, padding with full side breakdown
-- **Fonts tab** — family, size, weight, line-height, color with Google Fonts link
+- **Fonts tab** — family, size, weight, line-height, color with source detection (Google Fonts / System / Self-hosted) and one-click download for self-hosted font files
 - **HTML tab** — syntax-highlighted `outerHTML` editor with live editing
 - **Breadcrumb navigation** — traverse ancestors and children, click to lock/unlock
 - **CSS variable resolution** — all `var(--x)` references resolved and shown inline
@@ -189,6 +189,7 @@ devlens/
 - New navigation sidebar with per-tool accent colors and active indicator strip
 - Code blocks component system — collapsible groups, checkboxes, color swatches, CSS var highlighting
 - Filter bar, Copy as Tailwind button
+- Font download — self-hosted font detection and one-click download in Fonts tab
 
 ### Phase 3 — AI Bridge (full spec)
 
