@@ -3,7 +3,7 @@ name: Build & Release
 on:
   push:
     branches:
-      - design/ux-improvements
+      - main
 
 jobs:
   release:
@@ -27,7 +27,7 @@ jobs:
       - name: Zip dist
         run: |
           cd dist
-          zip -r ../devlens-design-latest.zip .
+          zip -r ../devlens-latest.zip .
 
       - name: Delete previous latest release
         run: gh release delete latest --yes --cleanup-tag
@@ -37,10 +37,10 @@ jobs:
 
       - name: Create release
         run: |
-          gh release create latest devlens-design-latest.zip \
+          gh release create latest devlens-latest.zip \
             --title "DevLens Design Branch — Latest" \
-            --notes "Auto-built from the \`design\` branch on $(date -u '+%Y-%m-%d %H:%M UTC')" \
+            --notes "Auto-built from the \`main\` branch on $(date -u '+%Y-%m-%d %H:%M UTC')" \
             --prerelease \
-            --target design/ux-improvements
+            --target main
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
