@@ -72,10 +72,10 @@ export default function EyedropperPanel() {
   }, [colors])
 
   async function pickColor() {
-    if (!(window as any).EyeDropper) { alert('EyeDropper API not supported.'); return }
+    if (!('EyeDropper' in window)) { alert('EyeDropper API not supported.'); return }
     setIsPicking(true)
     try {
-      const result = await new (window as any).EyeDropper().open()
+      const result = await new (window as unknown as { EyeDropper: new () => { open: () => Promise<{ sRGBHex: string }> } }).EyeDropper().open()
       const hex    = result.sRGBHex
       const r = parseInt(hex.slice(1, 3), 16)
       const g = parseInt(hex.slice(3, 5), 16)

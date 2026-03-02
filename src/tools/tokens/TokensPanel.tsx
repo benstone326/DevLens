@@ -243,7 +243,7 @@ function ExportBar({ tokens }: { tokens: TokenSet }) {
     { id: 'penpot',   label: 'Penpot',         ext: 'json', desc: 'W3C DTCG · single file'   },
   ]
 
-  const active = formats.find(f => f.id === format)!
+  const active = formats.find(f => f.id === format) ?? formats[0]
 
   function getOutput() { return exportTokens(tokens, format) }
 

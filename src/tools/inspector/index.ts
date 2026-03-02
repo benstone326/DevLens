@@ -317,9 +317,11 @@ function showBoxOverlay(el: Element) {
 
 function onMouseMove(e: MouseEvent) {
   // Suppress all highlighting during panel drag
-  if ((window as any).__devlens_inspector_enabled === false) return
+  if (window.__devlens_inspector_enabled === false) return
   const target = e.target as Element
   if (!target || target.closest('#devlens-root') || target.id === 'devlens-inspector-overlay') return
+  // Track last hovered element so LOCK_ELEMENT message handler can lock it
+  window.__devlens_last_hovered = target
   if (isLocked) {
     // Show hover highlight without touching locked overlay or panel data
     highlightHover(target)
@@ -335,7 +337,7 @@ function onClick(e: MouseEvent) {
   if (!target || target.closest('#devlens-root')) return
   e.preventDefault()
   e.stopPropagation()
-  const iframe = (window as any).__devlens_iframe as HTMLIFrameElement | null
+  const iframe = window.__devlens_iframe
 
   if (isLocked && target === lastTarget) {
     isLocked = false
@@ -345,9 +347,9 @@ function onClick(e: MouseEvent) {
   } else {
     isLocked = true
     lastTarget = target
-    ;(window as any).__devlens_locked_el = target
-    if (!(window as any).__devlens_original_styles)
-      ;(window as any).__devlens_original_styles = (target as HTMLElement).getAttribute('style') ?? ''
+    window.__devlens_locked_el = target
+    if (!window.__devlens_original_styles)
+      window.__devlens_original_styles = (target as HTMLElement).getAttribute('style') ?? ''
     hideHoverOverlay()
     if (overlay) overlay.style.borderColor = '#f59e0b'
     highlightElement(target)

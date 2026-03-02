@@ -310,4 +310,4 @@ type FilteredTokens = {
   radii: import('./index').RadiusToken[]
   breakpoints: import('./index').BreakpointToken[]
 }
-type filterEnabled = FilteredTokens
+type _filterEnabled = FilteredTokens

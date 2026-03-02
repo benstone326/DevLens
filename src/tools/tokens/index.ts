@@ -72,7 +72,8 @@ function toHex(color: string): string | null {
   try {
     const canvas = document.createElement('canvas')
     canvas.width = canvas.height = 1
-    const ctx = canvas.getContext('2d')!
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
 
     // Parse rgba manually for alpha support
     const rgbaMatch = color.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)/)

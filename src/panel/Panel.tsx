@@ -156,7 +156,7 @@ export default function Panel() {
       postToParent({ type: 'STOP_INSPECTOR' })
       setInspectorActive(false)
     }
-  }, [activeTool])
+  }, [activeTool, inspectorActive])
 
   function closePanel() {
     if (inspectorActive) postToParent({ type: 'STOP_INSPECTOR' })
@@ -173,11 +173,11 @@ export default function Panel() {
     window.addEventListener('mouseup', onMouseUp)
   }
 
-  const activeItem = NAV_ITEMS.find(n => n.id === activeTool)!
+  const activeItem = NAV_ITEMS.find(n => n.id === activeTool) ?? NAV_ITEMS[0]
 
   function renderTool() {
     switch (activeTool) {
-      case 'inspector':  return <InspectorPanel data={inspectorData} isActive={inspectorActive} />
+      case 'inspector':  return <InspectorPanel data={inspectorData} _isActive={inspectorActive} />
       case 'eyedropper': return <EyedropperPanel />
       case 'tokens':     return <TokensPanel />
       default:           return <PlaceholderTool item={activeItem} />
