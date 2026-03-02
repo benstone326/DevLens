@@ -111,7 +111,9 @@ function postToPanel(msg: object) {
 function setupMessageBridge() {
   window.addEventListener('message', (event) => {
     const iframe = getIframe()
+    const extensionOrigin = new URL(chrome.runtime.getURL('')).origin
     if (!iframe || event.source !== iframe.contentWindow) return
+    if (event.origin !== extensionOrigin) return
     if (event.data?.channel !== DEVLENS_CHANNEL) return
 
     switch (event.data.type) {
