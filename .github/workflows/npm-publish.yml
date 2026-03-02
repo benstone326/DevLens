@@ -1,0 +1,45 @@
+name: Build & Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install & Build
+        run: |
+          npm install
+          npm run build
+
+      - name: Zip dist
+        run: |
+          cd dist
+          zip -r ../devlens-design-latest.zip .
+
+      - name: Delete previous latest release
+        run: gh release delete latest --yes --cleanup-tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Create release
+        run: |
+          gh release create latest devlens-design-latest.zip \
+            --title "DevLens Design Branch — Latest" \
+            --notes "Auto-built from the \`main\` branch on $(date -u '+%Y-%m-%d %H:%M UTC')" \
+            --prerelease \
+            --target main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
