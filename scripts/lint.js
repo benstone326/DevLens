@@ -4,6 +4,12 @@ const { join } = require('node:path')
 
 const checks = [
   {
+    file: 'src/shared/messaging.ts',
+    regex: /postMessage\([^,]+,\s*['"]\*['"]\s*\)/,
+    message: 'Avoid direct wildcard target origin in shared messaging.',
+    expectAbsent: true,
+  },
+  {
     file: 'src/content/index.ts',
     regex: /window as any/,
     message: 'Avoid window as any in content bridge.',
@@ -13,6 +19,12 @@ const checks = [
     file: 'src/tools/eyedropper/EyedropperPanel.tsx',
     regex: /window as any/,
     message: 'Avoid window as any in eyedropper panel.',
+    expectAbsent: true,
+  },
+  {
+    file: 'scripts/lint.js',
+    regex: /^(<<<<<<<|=======|>>>>>>>)\s/m,
+    message: 'Resolve merge-conflict markers in lint script.',
     expectAbsent: true,
   },
 ]
