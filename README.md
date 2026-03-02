@@ -25,6 +25,7 @@ Hover over any element to inspect it in real time. Click to lock it for editing.
 - **HTML tab** — syntax-highlighted `outerHTML` editor with live editing
 - **Breadcrumb navigation** — traverse ancestors and children, click to lock/unlock
 - **CSS variable resolution** — all `var(--x)` references resolved and shown inline
+- **Accessibility (A11y) inline section** — contrast ratio with WCAG AA/AAA pass/fail, missing `alt`, missing `aria-label`, missing `for` on labels — shown at the bottom of the Styles tab when an element is locked
 
 ### 🪙 Token Extractor
 
@@ -190,6 +191,7 @@ devlens/
 - Code blocks component system — collapsible groups, checkboxes, color swatches, CSS var highlighting
 - Filter bar, Copy as Tailwind button
 - Font download — self-hosted font detection and one-click download in Fonts tab
+- A11y inline section — contrast ratio badge + quick warnings at bottom of Styles tab, no new navigation item needed
 
 ### Phase 3 — AI Bridge (full spec)
 
