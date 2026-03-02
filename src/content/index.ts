@@ -1,14 +1,15 @@
 import { startInspector, stopInspector, extractElementData, navigateLocked, setBoxMode } from '../tools/inspector/index'
 import { extractTokens } from '../tools/tokens/index'
+import { DEVLENS_CHANNEL } from '../shared/messaging'
 
 // Temporarily pause/resume inspector hover highlighting during drag
 function setInspectorEnabled(enabled: boolean) {
-  ;(window as any).__devlens_inspector_enabled = enabled
+  window.__devlens_inspector_enabled = enabled
 }
 
 // Guard against double-injection
-if ((window as any).__devlens_loaded) throw new Error('[DevLens] Already loaded')
-;(window as any).__devlens_loaded = true
+if (window.__devlens_loaded) throw new Error('[DevLens] Already loaded')
+window.__devlens_loaded = true
 
 let isDragging = false
 let dragOffsetX = 0
@@ -52,7 +53,7 @@ function mountPanel() {
 
   container.appendChild(iframe)
   document.documentElement.appendChild(container)
-  ;(window as any).__devlens_iframe = iframe
+  window.__devlens_iframe = iframe
   setupMessageBridge()
   setupDrag()
 }
@@ -103,13 +104,17 @@ function snapBack() {
 
 // ─── Message bridge ───────────────────────────────────────────────────────────
 function postToPanel(msg: object) {
-  getIframe()?.contentWindow?.postMessage(msg, '*')
+  const extensionOrigin = new URL(chrome.runtime.getURL('')).origin
+  getIframe()?.contentWindow?.postMessage(msg, extensionOrigin)
 }
 
 function setupMessageBridge() {
   window.addEventListener('message', (event) => {
-    if (event.data?.source !== 'devlens-panel') return
     const iframe = getIframe()
+    const extensionOrigin = new URL(chrome.runtime.getURL('')).origin
+    if (!iframe || event.source !== iframe.contentWindow) return
+    if (event.origin !== extensionOrigin) return
+    if (event.data?.channel !== DEVLENS_CHANNEL) return
 
     switch (event.data.type) {
       case 'PANEL_READY':
@@ -128,7 +133,7 @@ function setupMessageBridge() {
       }
 
       case 'NAVIGATE_TO': {
-        const locked = (window as any).__devlens_locked_el as Element | null
+        const locked = window.__devlens_locked_el as Element | null
         if (!locked) break
         let target: Element | null = null
 
@@ -148,8 +153,8 @@ function setupMessageBridge() {
         }
 
         if (!target || target.closest('#devlens-root')) break
-        ;(window as any).__devlens_locked_el = target
-        ;(window as any).__devlens_original_styles = (target as HTMLElement).getAttribute('style') ?? ''
+        window.__devlens_locked_el = target
+        window.__devlens_original_styles = (target as HTMLElement).getAttribute('style') ?? ''
         navigateLocked(target)
         postToPanel({ type: 'INSPECTOR_DATA', payload: extractElementData(target) })
         break
@@ -170,38 +175,38 @@ function setupMessageBridge() {
 
       case 'STOP_INSPECTOR':
         stopInspector()
-        ;(window as any).__devlens_locked_el = null
-        ;(window as any).__devlens_original_styles = null
+        window.__devlens_locked_el = null
+        window.__devlens_original_styles = null
         postToPanel({ type: 'INSPECTOR_UNLOCKED' })
         break
 
       // Design idea C: panel can lock/unlock element without a page click
       case 'LOCK_ELEMENT': {
-        const el = (window as any).__devlens_last_hovered as Element | null
+        const el = window.__devlens_last_hovered as Element | null
         if (el) {
-          ;(window as any).__devlens_locked_el = el
-          ;(window as any).__devlens_original_styles = (el as HTMLElement).getAttribute('style') ?? ''
+          window.__devlens_locked_el = el
+          window.__devlens_original_styles = (el as HTMLElement).getAttribute('style') ?? ''
           postToPanel({ type: 'INSPECTOR_LOCKED' })
         }
         break
       }
 
       case 'UNLOCK_ELEMENT': {
-        ;(window as any).__devlens_locked_el = null
-        ;(window as any).__devlens_original_styles = null
+        window.__devlens_locked_el = null
+        window.__devlens_original_styles = null
         postToPanel({ type: 'INSPECTOR_UNLOCKED' })
         break
       }
 
       case 'SET_BOX_MODE': {
         setBoxMode(event.data.enabled as boolean)
-        const el = (window as any).__devlens_locked_el as Element | null
+        const el = window.__devlens_locked_el as Element | null
         if (el) navigateLocked(el)
         break
       }
 
       case 'APPLY_OUTERHTML': {
-        const el = (window as any).__devlens_locked_el as HTMLElement | null
+        const el = window.__devlens_locked_el as HTMLElement | null
         if (el && event.data.html) {
           try {
             const tmp = document.createElement('div')
@@ -209,7 +214,7 @@ function setupMessageBridge() {
             const newEl = tmp.firstElementChild
             if (newEl) {
               el.replaceWith(newEl);
-              (window as any).__devlens_locked_el = newEl
+              window.__devlens_locked_el = newEl
             }
           } catch { /* invalid html */ }
         }
@@ -217,17 +222,17 @@ function setupMessageBridge() {
       }
 
       case 'APPLY_STYLE': {
-        const el = (window as any).__devlens_locked_el as HTMLElement | null
+        const el = window.__devlens_locked_el as HTMLElement | null
         if (el && event.data.prop && event.data.value !== undefined)
           el.style.setProperty(event.data.prop, event.data.value)
         break
       }
 
       case 'RESET_STYLES': {
-        const el = (window as any).__devlens_locked_el as HTMLElement | null
+        const el = window.__devlens_locked_el as HTMLElement | null
         if (el) {
-          el.setAttribute('style', (window as any).__devlens_original_styles ?? '')
-          ;(window as any).__devlens_original_styles = null
+          el.setAttribute('style', window.__devlens_original_styles ?? '')
+          window.__devlens_original_styles = null
         }
         break
       }
@@ -299,7 +304,7 @@ function stopDrag() {
 }
 
 // ─── Chrome message handler ───────────────────────────────────────────────────
-chrome.runtime.onMessage.addListener((message: any, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: { type?: string; payload?: { tool?: string } }, _sender, sendResponse) => {
   switch (message.type) {
     case 'PING':
       sendResponse({ type: 'PONG' })

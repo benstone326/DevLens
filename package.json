@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "description": "All-in-one browser extension for web developers",
   "scripts": {
-    "dev": "vite build --watch",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "node ./node_modules/vite/bin/vite.js build --watch",
+    "build": "node ./node_modules/vite/bin/vite.js build",
+    "preview": "node ./node_modules/vite/bin/vite.js preview",
+    "lint": "node scripts/lint.js",
+    "test": "npm run lint && npm run build"
   },
   "dependencies": {
     "lucide-react": "^0.263.1",
