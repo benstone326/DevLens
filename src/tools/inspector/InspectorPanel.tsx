@@ -360,7 +360,7 @@ function Badge({ pass, label, variant }: { pass: boolean; label: string; variant
           ? <svg width="6" height="6" viewBox="0 0 6 6" fill="none"><path d="M1 3L2.5 4.5L5 1.5" stroke={c.text} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
           : <svg width="6" height="6" viewBox="0 0 6 6" fill="none"><path d="M1 1L5 5M5 1L1 5" stroke={c.text} strokeWidth="1.2" strokeLinecap="round"/></svg>
       }
-      <span className="text-[6px] font-bold" style={{ color: c.text }}>{label}</span>
+      <span className="text-[9px] font-bold" style={{ color: c.text }}>{label}</span>
     </div>
   )
 }
@@ -479,11 +479,17 @@ function StylesBlock({ data, canEdit }: { data: InspectorElementData; canEdit: b
       <div className="flex items-center justify-between px-3 py-1 text-[9px] font-semibold tracking-widest uppercase"
            style={{ color: '#6b7280' }}>
         <span>Element Style</span>
-        <span className="font-normal normal-case tracking-normal px-1.5 py-0.5 rounded text-[6px]"
+        <span className="flex items-center gap-1 font-normal normal-case tracking-normal px-1.5 py-0.5 rounded"
               style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid #f59e0b', color: '#f59e0b' }}>
-          {selectorLabel}
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none" style={{ flexShrink: 0 }}>
+            <path d="M4 1a3 3 0 100 6A3 3 0 004 1zm0 1v2l1.5 1" stroke="#f59e0b" strokeWidth="1.2" strokeLinecap="round"/>
+          </svg>
+          <span style={{ fontSize: 9 }}>{selectorLabel}</span>
         </span>
       </div>
+
+      {/* Custom CSS — belongs with Element Style */}
+      <CustomCSSBlock canEdit={canEdit} />
 
       {/* CSS groups */}
       {filtered.length === 0 ? (
@@ -504,7 +510,6 @@ function StylesBlock({ data, canEdit }: { data: InspectorElementData; canEdit: b
 
       <VarsBlock cssVars={cssVars ?? {}} />
       <A11yBlock data={data} />
-      <CustomCSSBlock canEdit={canEdit} />
     </div>
   )
 }
@@ -763,21 +768,19 @@ function RelationPill({ label, node, canNavigate, onClick }: {
 
   return (
     <button
-      onClick={onClick}
-      disabled={disabled}
+      onClick={!disabled ? onClick : undefined}
       className="flex items-center gap-1 px-1.5 py-0.5 rounded w-full transition-colors"
       style={{
         background: disabled ? 'transparent' : h ? '#6366f115' : '#f9fafb',
         border:     `1px solid ${disabled ? '#1e293b' : h ? '#6366f133' : '#e5e7eb'}`,
-        opacity:    disabled ? 0.3 : 1,
         cursor:     disabled ? 'default' : 'pointer',
         minWidth:   0,
       }}
       {...hp}
     >
-      <span style={{ color: '#6b7280', fontSize: 9, flexShrink: 0, lineHeight: 1 }}>{icons[label]}</span>
-      <span className="text-[8px] font-mono truncate" style={{ color: '#6b7280' }}>
-        {node ? pillLabel(node) : label}
+      <span style={{ color: disabled ? '#374151' : '#6b7280', fontSize: 9, flexShrink: 0, lineHeight: 1 }}>{icons[label]}</span>
+      <span className="text-[9px] font-mono truncate" style={{ color: disabled ? '#374151' : '#6b7280' }}>
+        {disabled ? '—' : node ? pillLabel(node) : label}
       </span>
     </button>
   )
@@ -819,16 +822,12 @@ function RelationsBar({ data, canEdit, onToggleLock }: {
         ) : null}
       </button>
 
-      {/* Relations 2×2 grid */}
+      {/* Relations row — Parent + Child only */}
       <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 1fr' }}>
-        <RelationPill label="Parent"    node={parent} canNavigate={canEdit}
+        <RelationPill label="Parent" node={parent} canNavigate={canEdit}
           onClick={() => postToParent({ type: 'NAVIGATE_TO', direction: 'ancestor', steps: 1 })} />
-        <RelationPill label="Child"     node={child}  canNavigate={canEdit}
+        <RelationPill label="Child"  node={child}  canNavigate={canEdit}
           onClick={() => postToParent({ type: 'NAVIGATE_TO', direction: 'child', childIndex: 0 })} />
-        <RelationPill label="Sibling ↑" node={null}   canNavigate={canEdit}
-          onClick={() => postToParent({ type: 'NAVIGATE_TO', direction: 'sibling', delta: -1 })} />
-        <RelationPill label="Sibling ↓" node={null}   canNavigate={canEdit}
-          onClick={() => postToParent({ type: 'NAVIGATE_TO', direction: 'sibling', delta: 1 })} />
       </div>
     </div>
   )
