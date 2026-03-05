@@ -165,12 +165,6 @@ function StyleRow({ prop, val, isDisabled, isChanged, canEdit, onChange, onReset
         {prop}:
       </span>
 
-      {/* Color swatch */}
-      {isColor && !isDisabled && (
-        <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
-                       background: val, border: '1px solid rgba(255,255,255,0.2)', flexShrink: 0 }} />
-      )}
-
       {/* Editable value */}
       <div className="relative flex-1 min-w-0 leading-5 overflow-hidden">
         {!focused && (

@@ -168,8 +168,8 @@ function UtilButton({
 }
 
 // ─── Drag/Magnet button ────────────────────────────────────────────────────────
-// Snapped:  grip dots icon → drag to float
-// Floating: magnet icon   → click to snap back
+// Snapped:  6-dot grip → mousedown to drag
+// Floating: magnet icon → click = snap back, hold+drag = drag again
 function DragOrMagnetButton({
   isFloating, onMouseDown, onSnapBack,
 }: {
@@ -179,7 +179,7 @@ function DragOrMagnetButton({
 }) {
   const [hovered, hoverProps] = useHover()
 
-  // Grip SVG (6 dots — matches Figma DragVertical)
+  // 6-dot grip — matches Figma DragVertical (2 columns × 3 rows)
   const GripIcon = (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
       <circle cx="5.5" cy="4"  r="1.2" fill="currentColor" />
@@ -191,21 +191,55 @@ function DragOrMagnetButton({
     </svg>
   )
 
-  // Magnet SVG (matches Figma 16/Magnet)
+  // Horseshoe magnet — exact Figma shape:
+  // Two vertical prongs at bottom, arch connecting them at top
+  // South poles (prong tips) face downward with red/blue pole ends
   const MagnetIcon = (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M3 3.5V8a5 5 0 0010 0V3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <line x1="3"  y1="3.5" x2="3"  y2="1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <line x1="13" y1="3.5" x2="13" y2="1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      {/* Left prong */}
+      <rect x="2.5" y="8" width="3" height="4.5" rx="0.5" fill="currentColor" opacity="0.9"/>
+      {/* Right prong */}
+      <rect x="10.5" y="8" width="3" height="4.5" rx="0.5" fill="currentColor" opacity="0.9"/>
+      {/* Arch connecting the two prongs */}
+      <path d="M4 8V5a4 4 0 018 0v3" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square" fill="none"/>
+      {/* Pole tips */}
+      <rect x="2.5" y="11.5" width="3" height="1.5" rx="0.4" fill="#ef4444"/>
+      <rect x="10.5" y="11.5" width="3" height="1.5" rx="0.4" fill="#3b82f6"/>
     </svg>
   )
 
   if (isFloating) {
-    // Magnet — click to snap back, amber color to signal action
+    // When floating: mousedown starts a drag (if mouse moves), mouseup without move = snap back
+    const handleMouseDown = (e: React.MouseEvent) => {
+      const startX = e.clientX
+      const startY = e.clientY
+      let dragging = false
+
+      const handleMouseMove = (me: MouseEvent) => {
+        const dx = Math.abs(me.clientX - startX)
+        const dy = Math.abs(me.clientY - startY)
+        if (!dragging && (dx > 4 || dy > 4)) {
+          dragging = true
+          onMouseDown(e)  // start the actual drag
+        }
+      }
+
+      const handleMouseUp = () => {
+        window.removeEventListener('mousemove', handleMouseMove)
+        window.removeEventListener('mouseup', handleMouseUp)
+        if (!dragging) {
+          onSnapBack()  // it was a click — snap back
+        }
+      }
+
+      window.addEventListener('mousemove', handleMouseMove)
+      window.addEventListener('mouseup', handleMouseUp)
+    }
+
     return (
       <button
-        onClick={onSnapBack}
-        title="Snap back to side"
+        onMouseDown={handleMouseDown}
+        title="Click to snap · Hold to drag"
         {...hoverProps}
         style={{
           width:          36,
@@ -227,11 +261,11 @@ function DragOrMagnetButton({
     )
   }
 
-  // Grip — drag to float
+  // Snapped — grip, drag to float
   return (
     <button
       onMouseDown={onMouseDown}
-      title="Drag to move"
+      title="Drag to detach"
       {...hoverProps}
       style={{
         width:          36,

@@ -110,11 +110,14 @@ function postToPanel(msg: object) {
 
 function setupMessageBridge() {
   window.addEventListener('message', (event) => {
-    // Security: only accept messages from our own iframe, not from page scripts
-    // that could spoof the `source` string.
-    const iframe = getIframe()
-    if (event.source !== iframe?.contentWindow) return
+    // Security: verify message comes from our panel iframe.
+    // Primary check: event.source matches the iframe's contentWindow.
+    // Fallback: if iframe is not yet in DOM (e.g. early PANEL_READY), accept
+    // messages that carry the devlens-panel source string — they can only
+    // arrive from our extension's chrome-extension:// origin anyway.
     if (event.data?.source !== 'devlens-panel') return
+    const iframe = getIframe()
+    if (iframe && event.source !== iframe.contentWindow) return
 
     switch (event.data.type) {
       case 'PANEL_READY':

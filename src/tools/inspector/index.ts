@@ -255,6 +255,7 @@ let isActive = false
 let isLocked = false
 let isBoxMode = false
 let lastTarget: Element | null = null
+let lastHoverTarget: Element | null = null     // tracks currently hovered el for scroll refresh
 let onDataCallback: ((data: InspectorElementData) => void) | null = null
 
 export function setBoxMode(enabled: boolean) {
@@ -380,6 +381,7 @@ function onMouseMove(e: MouseEvent) {
   window.__devlens_last_hovered = target
   if (isLocked) {
     // Show hover highlight without touching locked overlay or panel data
+    lastHoverTarget = target
     highlightHover(target)
     return
   }
@@ -419,7 +421,11 @@ function onKeyDown(e: KeyboardEvent) {
 }
 
 function onScroll() {
+  // Re-position locked element overlay so it tracks the element as page scrolls
   if (isLocked && lastTarget) highlightElement(lastTarget)
+  // Re-position hover overlay too — getBoundingClientRect() is viewport-relative
+  // so we must recalculate after every scroll event
+  if (isLocked && lastHoverTarget) highlightHover(lastHoverTarget)
 }
 
 function highlightElement(el: Element) {
@@ -476,6 +482,7 @@ function hideHoverOverlay() {
   if (hoverOverlay) hoverOverlay.style.display = 'none'
   if (hoverTooltip) hoverTooltip.style.display = 'none'
   if (boxOverlay && !isLocked) boxOverlay.style.display = 'none'
+  lastHoverTarget = null
 }
 
 export function navigateLocked(el: Element) {
@@ -544,6 +551,8 @@ export function stopInspector() {
   isActive = false
   isLocked = false
   onDataCallback = null
+  lastTarget = null
+  lastHoverTarget = null
   overlay?.remove(); overlay = null
   hoverOverlay?.remove(); hoverOverlay = null
   hoverTooltip?.remove(); hoverTooltip = null
