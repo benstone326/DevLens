@@ -233,8 +233,16 @@ function setupMessageBridge() {
 
       case 'APPLY_STYLE': {
         const el = window.__devlens_locked_el as HTMLElement | null
-        if (el && event.data.prop && event.data.value !== undefined)
-          el.style.setProperty(event.data.prop, event.data.value)
+        if (el && event.data.prop) {
+          // Empty string = disable (checkbox unchecked) → removeProperty so the
+          // browser properly falls back to inherited/stylesheet values.
+          // Non-empty = set / update the property inline.
+          if (event.data.value === '' || event.data.value == null) {
+            el.style.removeProperty(event.data.prop)
+          } else {
+            el.style.setProperty(event.data.prop, event.data.value)
+          }
+        }
         break
       }
 

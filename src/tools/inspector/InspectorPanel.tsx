@@ -460,7 +460,8 @@ function StylesBlock({ data, canEdit }: { data: InspectorElementData; canEdit: b
     + data.classes.slice(0, 2).map(c => `.${c}`).join('')
 
   return (
-    <div className="px-3 pb-3 flex flex-col gap-2 flex-1">
+    // Figma node 10:238 — padding 12px all sides, gap 8px between items
+    <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
 
       {/* Filter bar — white bg, light border per Figma */}
       <div className="flex items-center gap-1 rounded px-1.5 h-[22px]"
@@ -497,7 +498,7 @@ function StylesBlock({ data, canEdit }: { data: InspectorElementData; canEdit: b
         </span>
       </div>
 
-      {/* Custom CSS — belongs with Element Style */}
+      {/* Live CSS editor — applies on keystroke */}
       <CustomCSSBlock canEdit={canEdit} />
 
       {/* CSS groups */}
@@ -524,59 +525,51 @@ function StylesBlock({ data, canEdit }: { data: InspectorElementData; canEdit: b
 }
 
 // ─── CustomCSSBlock ───────────────────────────────────────────────────────────
+// Live-applies CSS as you type, exactly like DevTools.
 function CustomCSSBlock({ canEdit }: { canEdit: boolean }) {
-  const [text,    setText]    = useState('')
-  const [applied, setApplied] = useState(false)
-  const [error,   setError]   = useState<string | null>(null)
+  const [text, setText] = useState('')
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  function applyCSS() {
+  // Parse and send each valid prop:value pair to the content script
+  function applyLive(raw: string) {
     if (!canEdit) return
-    const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
-    const valid: [string, string][] = []
-    const invalid: string[] = []
+    const lines = raw.split('\n').map(l => l.trim()).filter(Boolean)
     for (const line of lines) {
       const colonIdx = line.indexOf(':')
-      if (colonIdx < 1) { invalid.push(line); continue }
+      if (colonIdx < 1) continue
       const prop = line.slice(0, colonIdx).trim()
       const val  = line.slice(colonIdx + 1).replace(/;\s*$/, '').trim()
-      if (!prop || !val) { invalid.push(line); continue }
-      valid.push([prop, val])
+      if (!prop) continue
+      // Empty value removes the property (live disable)
+      window.parent.postMessage(
+        { source: 'devlens-panel', type: 'APPLY_STYLE', prop, value: val },
+        '*'
+      )
     }
-    if (invalid.length > 0) { setError(`Invalid: ${invalid.join(', ')}`); return }
-    setError(null)
-    for (const [prop, val] of valid)
-      window.parent.postMessage({ source: 'devlens-panel', type: 'APPLY_STYLE', prop, value: val }, '*')
-    setApplied(true)
-    setTimeout(() => setApplied(false), 1500)
   }
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); applyCSS() }
+  function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const raw = e.target.value
+    setText(raw)
+    // Debounce 80ms — fast enough to feel live, avoids flooding on each char
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => applyLive(raw), 80)
   }
 
   if (!canEdit) return null
 
   return (
     <div className="rounded overflow-hidden"
-         style={{ border: `1px solid ${error ? '#f43f5e44' : applied ? '#10b98144' : '#374151'}`, background: '#111827' }}>
-      <div className="flex items-center gap-2 px-3 py-1.5" style={{ borderBottom: '1px solid #374151' }}>
-        <span className="text-[9px] font-semibold tracking-widest uppercase" style={{ color: '#6b7280' }}>Custom CSS</span>
-        <span className="text-[9px] ml-auto" style={{ color: '#374151' }}>⌘↵ apply</span>
-      </div>
+         style={{ border: '1px solid #374151', background: '#111827' }}>
       <textarea
-        value={text} onChange={e => setText(e.target.value)} onKeyDown={handleKeyDown}
-        spellCheck={false} placeholder={'color: red;\nfont-size: 14px;'} rows={3}
+        value={text}
+        onChange={handleChange}
+        spellCheck={false}
+        placeholder={'color: red;\nfont-size: 14px;'}
+        rows={3}
         className="w-full bg-transparent outline-none text-[11px] font-mono leading-5 resize-none px-3 py-2"
-        style={{ color: '#fde68a', caretColor: '#818cf8' }}
+        style={{ color: '#fde68a', caretColor: '#818cf8', display: 'block' }}
       />
-      <div className="flex items-center gap-2 px-3 py-1.5" style={{ borderTop: '1px solid #374151' }}>
-        {error && <span className="text-[9px] flex-1" style={{ color: '#f43f5e' }}>{error}</span>}
-        <button onClick={applyCSS} className="ml-auto flex items-center gap-1 text-[10px] px-3 py-1 rounded transition-colors"
-                style={{ background: applied ? '#10b98118' : '#6366f118', color: applied ? '#10b981' : '#818cf8',
-                         border: `1px solid ${applied ? '#10b98144' : '#6366f133'}` }}>
-          {applied ? <Check size={9} /> : null}{applied ? 'Applied!' : 'Apply'}
-        </button>
-      </div>
     </div>
   )
 }
@@ -778,12 +771,14 @@ function RelationPill({ label, node, canNavigate, onClick }: {
   return (
     <button
       onClick={!disabled ? onClick : undefined}
-      className="flex items-center gap-1 px-1.5 py-0.5 rounded w-full transition-colors"
+      className="flex items-center gap-1 w-full transition-colors"
       style={{
-        background: h && !disabled ? '#6366f115' : '#f9fafb',
-        border:     `1px solid ${h && !disabled ? '#6366f133' : '#e5e7eb'}`,
-        cursor:     disabled ? 'default' : 'pointer',
-        minWidth:   0,
+        background:   h && !disabled ? '#6366f115' : '#f9fafb',
+        border:       `1px solid ${h && !disabled ? '#6366f133' : '#e5e7eb'}`,
+        borderRadius: 2,
+        padding:      '2px 4px',
+        cursor:       disabled ? 'default' : 'pointer',
+        minWidth:     0,
       }}
       {...hp}
     >
@@ -809,9 +804,19 @@ function RelationsBar({ data, canEdit }: {
   const siblingNext = data.siblingNext ?? null
 
   return (
-    <div className="px-3 pb-2 flex flex-col gap-1.5">
-      {/* Relations 2×2 grid */}
-      <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 1fr' }}>
+    // Figma node 10:234 — bg gray-100, border-b gray-200, padding 12px
+    <div style={{
+      background:   '#f3f4f6',
+      borderBottom: '1px solid #e5e7eb',
+      padding:      12,
+    }}>
+      {/* Relations 2×2 grid — gap-x 8px, gap-y 4px per Figma */}
+      <div style={{
+        display:             'grid',
+        gridTemplateColumns: '1fr 1fr',
+        columnGap:           8,
+        rowGap:              4,
+      }}>
         <RelationPill label="Parent"    node={parent}      canNavigate={canEdit}
           onClick={() => postToParent({ type: 'NAVIGATE_TO', direction: 'ancestor', steps: 1 })} />
         <RelationPill label="Child"     node={child}       canNavigate={canEdit}
@@ -871,18 +876,24 @@ export default function InspectorPanel({ data, _isActive }: Props) {
     <div className="flex flex-col h-full">
       <RelationsBar data={data} canEdit={canEdit} />
 
-      {/* Tabs — underline style per Figma */}
-      <div className="flex px-3" style={{ borderBottom: '1px solid #e5e7eb' }}>
+      {/* Tabs — Figma node 57:1435: bg gray-100, border-b gray-200, gap 8px, each tab flex-1 */}
+      <div className="flex" style={{
+        background:   '#f3f4f6',
+        borderBottom: '1px solid #e5e7eb',
+        gap:          8,
+      }}>
         {tabs.map(tab => (
           <button key={tab.id} onClick={() => switchTab(tab.id)}
-                  className="flex items-center gap-1 px-2 py-3 text-[11px] font-medium transition-all relative shrink-0"
+                  className="flex items-center justify-center gap-1 text-[11px] font-medium transition-all"
                   style={{
+                    flex:          '1 0 0',
                     color:         activeTab === tab.id ? '#6366f1' : '#6b7280',
                     background:    'transparent',
                     border:        'none',
                     borderBottom:  activeTab === tab.id ? '2px solid #6366f1' : '2px solid transparent',
+                    padding:       '12px 8px',
                     marginBottom:  -1,
-                    paddingBottom: 10,
+                    cursor:        'pointer',
                   }}>
             {tab.icon}{tab.label}
           </button>
