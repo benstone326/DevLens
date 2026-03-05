@@ -3,12 +3,12 @@ import { extractTokens } from '../tools/tokens/index'
 
 // Temporarily pause/resume inspector hover highlighting during drag
 function setInspectorEnabled(enabled: boolean) {
-  ;(window as any).__devlens_inspector_enabled = enabled
+  window.__devlens_inspector_enabled = enabled
 }
 
 // Guard against double-injection
-if ((window as any).__devlens_loaded) throw new Error('[DevLens] Already loaded')
-;(window as any).__devlens_loaded = true
+if (window.__devlens_loaded) throw new Error('[DevLens] Already loaded')
+window.__devlens_loaded = true
 
 let isDragging = false
 let dragOffsetX = 0
@@ -52,7 +52,7 @@ function mountPanel() {
 
   container.appendChild(iframe)
   document.documentElement.appendChild(container)
-  ;(window as any).__devlens_iframe = iframe
+  window.__devlens_iframe = iframe
   setupMessageBridge()
   setupDrag()
 }
@@ -61,7 +61,8 @@ function mountPanel() {
 function openPanel() {
   mountPanel()
   setPanelOpen(true)
-  const iframe = getIframe()!
+  const iframe = getIframe()
+  if (!iframe) return
   iframe.style.transition = 'transform 0.25s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease'
   iframe.style.opacity = '1'
   iframe.style.transform = isFloating ? 'scale(1)' : 'translateX(0)'
@@ -83,7 +84,7 @@ function closePanel() {
 }
 
 function togglePanel() {
-  isPanelOpen() ? closePanel() : openPanel()
+  if (isPanelOpen()) { closePanel() } else { openPanel() }
 }
 
 function snapBack() {
@@ -128,7 +129,7 @@ function setupMessageBridge() {
       }
 
       case 'NAVIGATE_TO': {
-        const locked = (window as any).__devlens_locked_el as Element | null
+        const locked = window.__devlens_locked_el
         if (!locked) break
         let target: Element | null = null
 
@@ -145,11 +146,21 @@ function setupMessageBridge() {
             c => c.id !== 'devlens-root' && !c.id?.startsWith('devlens')
           )
           target = children[event.data.childIndex] ?? null
+        } else if (event.data.direction === 'sibling') {
+          const parent = locked.parentElement
+          if (parent) {
+            const siblings = (Array.from(parent.children) as Element[]).filter(
+              (c: Element) => c.id !== 'devlens-root' && !c.id?.startsWith('devlens')
+            )
+            const idx = siblings.indexOf(locked)
+            const next = idx + (event.data.delta ?? 0)
+            if (next >= 0 && next < siblings.length) target = siblings[next]
+          }
         }
 
         if (!target || target.closest('#devlens-root')) break
-        ;(window as any).__devlens_locked_el = target
-        ;(window as any).__devlens_original_styles = (target as HTMLElement).getAttribute('style') ?? ''
+        window.__devlens_locked_el = target
+        window.__devlens_original_styles = (target as HTMLElement).getAttribute('style') ?? ''
         navigateLocked(target)
         postToPanel({ type: 'INSPECTOR_DATA', payload: extractElementData(target) })
         break
@@ -170,46 +181,46 @@ function setupMessageBridge() {
 
       case 'STOP_INSPECTOR':
         stopInspector()
-        ;(window as any).__devlens_locked_el = null
-        ;(window as any).__devlens_original_styles = null
+        window.__devlens_locked_el = null
+        window.__devlens_original_styles = null
         postToPanel({ type: 'INSPECTOR_UNLOCKED' })
         break
 
       // Design idea C: panel can lock/unlock element without a page click
       case 'LOCK_ELEMENT': {
-        const el = (window as any).__devlens_last_hovered as Element | null
+        const el = window.__devlens_last_hovered
         if (el) {
-          ;(window as any).__devlens_locked_el = el
-          ;(window as any).__devlens_original_styles = (el as HTMLElement).getAttribute('style') ?? ''
+          window.__devlens_locked_el = el
+          window.__devlens_original_styles = (el as HTMLElement).getAttribute('style') ?? ''
           postToPanel({ type: 'INSPECTOR_LOCKED' })
         }
         break
       }
 
       case 'UNLOCK_ELEMENT': {
-        ;(window as any).__devlens_locked_el = null
-        ;(window as any).__devlens_original_styles = null
+        window.__devlens_locked_el = null
+        window.__devlens_original_styles = null
         postToPanel({ type: 'INSPECTOR_UNLOCKED' })
         break
       }
 
       case 'SET_BOX_MODE': {
         setBoxMode(event.data.enabled as boolean)
-        const el = (window as any).__devlens_locked_el as Element | null
+        const el = window.__devlens_locked_el
         if (el) navigateLocked(el)
         break
       }
 
       case 'APPLY_OUTERHTML': {
-        const el = (window as any).__devlens_locked_el as HTMLElement | null
+        const el = window.__devlens_locked_el as HTMLElement | null
         if (el && event.data.html) {
           try {
             const tmp = document.createElement('div')
             tmp.innerHTML = event.data.html
             const newEl = tmp.firstElementChild
             if (newEl) {
-              el.replaceWith(newEl);
-              (window as any).__devlens_locked_el = newEl
+              el.replaceWith(newEl)
+              window.__devlens_locked_el = newEl
             }
           } catch { /* invalid html */ }
         }
@@ -217,17 +228,17 @@ function setupMessageBridge() {
       }
 
       case 'APPLY_STYLE': {
-        const el = (window as any).__devlens_locked_el as HTMLElement | null
+        const el = window.__devlens_locked_el as HTMLElement | null
         if (el && event.data.prop && event.data.value !== undefined)
           el.style.setProperty(event.data.prop, event.data.value)
         break
       }
 
       case 'RESET_STYLES': {
-        const el = (window as any).__devlens_locked_el as HTMLElement | null
+        const el = window.__devlens_locked_el as HTMLElement | null
         if (el) {
-          el.setAttribute('style', (window as any).__devlens_original_styles ?? '')
-          ;(window as any).__devlens_original_styles = null
+          el.setAttribute('style', window.__devlens_original_styles ?? '')
+          window.__devlens_original_styles = null
         }
         break
       }
@@ -236,7 +247,8 @@ function setupMessageBridge() {
         isDragging = true
         // Disable inspector highlighting while dragging
         setInspectorEnabled(false)
-        const container = getContainer()!
+        const container = getContainer()
+        if (!container) break
         const rect = container.getBoundingClientRect()
         // offsetX/Y = mouse position inside the iframe (iframe-local coords).
         // Since the iframe fills the container 1:1, these are exactly how far
@@ -299,7 +311,7 @@ function stopDrag() {
 }
 
 // ─── Chrome message handler ───────────────────────────────────────────────────
-chrome.runtime.onMessage.addListener((message: any, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: Record<string, unknown>, _sender, sendResponse) => {
   switch (message.type) {
     case 'PING':
       sendResponse({ type: 'PONG' })

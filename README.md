@@ -1,125 +1,138 @@
-# DevLens
+# DevLens — Chrome Extension
 
-Reverse-engineer any website in seconds. Inspect, extract, convert, and understand any UI directly in the browser — without switching tools.
+> **Reverse-engineer any website in seconds.**
 
-DevLens is a front-end reverse engineering toolkit layered on top of Chrome DevTools.
+DevLens is a Chrome DevTools alternative built for designers and design-engineers. Inspect computed styles, extract design tokens, detect Tailwind classes, check accessibility, and live-edit CSS — all in a clean dark panel.
 
-**Core loop:** Inspect → Extract → Convert → Ask AI → Implement
+---
 
------
-
-## Tools
-
-### 🔍 Inspector
-
-Hover over any element to inspect it in real time. Click to lock it for editing.
-
-- **CSS properties** grouped by category (Layout, Spacing, Typography, Visual) with collapsible sections
-- **Live CSS editing** — edit any value, changes apply instantly on the page
-- **Copy as Tailwind** — convert any element’s CSS to Tailwind utility classes instantly
-- **Custom CSS** — type freeform `property: value` pairs and apply them with ⌘↵
-- **Filter bar** — search across all properties and values instantly
-- **Per-row copy** — copy any single declaration with one click
-- **Box model tab** — flat grid view of margin, border, padding with full side breakdown
-- **Fonts tab** — family, size, weight, line-height, color with source detection (Google Fonts / System / Self-hosted) and one-click download for self-hosted font files
-- **HTML tab** — syntax-highlighted `outerHTML` editor with live editing
-- **Breadcrumb navigation** — traverse ancestors and children, click to lock/unlock
-- **CSS variable resolution** — all `var(--x)` references resolved and shown inline
-- **Accessibility (A11y) inline section** — contrast ratio with WCAG AA/AAA pass/fail, missing `alt`, missing `aria-label`, missing `for` on labels — shown at the bottom of the Styles tab when an element is locked
-
-### 🪙 Token Extractor
-
-Extract the design system behind any website.
-
-- Extracts colors, typography, spacing, shadows, border radii, breakpoints, and CSS variables
-- Reveals the full design token structure of any site
-- Export as CSS variables, JSON, Tailwind config, SCSS variables, or Style Dictionary
-
-### 🎨 Color Eyedropper
-
-Pick colors from anywhere on the page and build a persistent palette.
-
-- Sample any pixel on screen
-- Output in HEX, RGB, and HSL
-- Saved color history persists across sessions
-- One-click copy in any format
-
-### 🤖 AI Bridge *(planned — Phase 3)*
-
-Send any inspected element to an AI with full context pre-loaded. No copy-pasting.
-
-- One click sends CSS, HTML, box model, and CSS variables as a structured prompt
-- Preset intents: “Explain this layout”, “Why is this breaking on mobile?”, “Convert to Tailwind”, “Improve accessibility”, or write a custom question
-- Option A: opens Claude.ai or ChatGPT with the prompt pre-filled — zero setup required
-- Option B: in-panel AI response via your own API key
-- Context depth toggle — element only, element + ancestors, or full chain
-- Right-click context menu shortcut — inspect and ask in one gesture
-
-### 📦 Assets *(planned — Phase 4)*
-
-Extract all images, SVGs, and fonts from a page with one click.
-
-- Download any asset directly from the panel
-- SVG optimization built in — every downloaded SVG is minified via SVGO, production-ready immediately
-
-### 📐 Responsive Viewer *(planned — Phase 5)*
-
-Preview any page at multiple viewport sizes simultaneously.
-
-- Sync-scroll — scrolling one viewport scrolls all others in lockstep
-
-### 📸 Screenshot *(planned — Phase 6)*
-
-Capture full-page or element-level screenshots.
-
-### 🐛 Debug *(planned — Phase 7, under evaluation)*
-
-Console output, network requests, and JavaScript errors in the panel.
-
-> Note: Debug and Screenshot tools will be re-evaluated after AI Bridge ships and user feedback is gathered. Focus > feature count.
-
------
-
-## Install
-
-### From a release
-
-1. Download `devlens-design-latest.zip` from the [Releases](../../releases) page
-1. Unzip the file
-1. Go to `chrome://extensions`
-1. Enable **Developer mode** (top-right toggle)
-1. Click **Load unpacked** and select the unzipped folder
-
-### From source
+## Quick Start
 
 ```bash
 npm install
-npm run build
+npm run build     # one-time build
+npm run dev       # watch mode
 ```
 
-Then load the `dist/` folder as an unpacked extension.
+Load in Chrome: `chrome://extensions` → Developer mode → Load unpacked → select `dist/`
 
------
+**Shortcuts**
 
-## Keyboard Shortcuts
+| Shortcut | Action |
+|---|---|
+| `Alt+Shift+D` | Toggle DevLens panel |
+| `Alt+Shift+I` | Open Inspector |
+| `Alt+Shift+C` | Open Color Eyedropper |
 
-|Shortcut     |Action               |
-|-------------|---------------------|
-|`Alt+Shift+D`|Toggle DevLens panel |
-|`Alt+Shift+I`|Open Inspector       |
-|`Alt+Shift+C`|Open Color Eyedropper|
+---
 
------
+## Positioning
 
-## Usage
+**Core loop:** Inspect → Extract → Convert → Ask AI → Implement
 
-- Click the DevLens icon in your toolbar, or press `Alt+Shift+D`
-- The panel slides in from the right edge of your browser
-- Drag the handle to float the panel anywhere on screen
-- Press `Snap` to return it to the side
-- Switch tools using the sidebar icons
+DevLens is a **UI reverse-engineering accelerator**, not just an inspector. The goal is to bridge the gap between "I see this on a website" and "I can build this."
 
------
+---
+
+## Roadmap
+
+| Phase | Features | Status |
+|---|---|---|
+| 1 | Foundation, popup, panel, messaging, shortcuts | ✅ Done |
+| 2 | Inspector + Color Eyedropper + Token Extractor | ✅ Done |
+| 2b | Inspector redesign: Relations nav, TW bar, Checkbox toggle, A11y, Collapsible groups | ✅ Done |
+| 3 | AI Bridge — one-click "explain/convert/fix" via Claude/ChatGPT | ⏳ Next |
+| 4 | Copy as Tailwind (per-element CSS→TW conversion) | ⏳ Planned |
+| 5 | Font Download (Google Fonts link / self-hosted download) | ⏳ Planned |
+| 6 | Assets + SVG optimization | ⏳ Planned |
+| 7 | Responsive Viewer | ⏳ Planned |
+| 8 | Screenshot | ⏳ Planned |
+| 9 | Full A11y Auditor (axe-core, full page scan) | ⏳ Planned |
+
+---
+
+## Inspector — Phase 2b Features
+
+### Relations Navigation (replaces breadcrumb)
+A 2×2 grid of pill buttons: **Parent**, **Child**, **Sibling ↑**, **Sibling ↓**.
+- Click to navigate and lock to that element
+- Pills show `tag#id` or `tag.class` label
+- Greyed out when relation doesn't exist or element is not locked
+- Current element chip above the grid is the lock toggle
+
+### Tailwind Classes Bar
+Three states based on page detection + element classes:
+- **Hidden** — site doesn't use Tailwind at all
+- **"No classes detected"** — site uses Tailwind but this element has no TW classes
+- **Shows classes + copy button** — element has TW classes
+
+Detection strategy (cached per page load):
+1. `window.__tailwind` global (Vite/CRA)
+2. Stylesheet href contains `tailwind`
+3. Sample 50 elements — if any have 3+ TW-pattern classes → Tailwind detected
+
+### Checkbox Property Toggle (Chrome DevTools style)
+Each CSS row has a 10×10 checkbox. Unchecking:
+- Sends `APPLY_STYLE` with empty value (disables on page)
+- Renders property name + value with `line-through`
+- Reduces row opacity to 0.45
+Re-checking restores the value.
+
+### Red × Reset Button
+Appears on rows where value has been inline-edited. Resets to original value.
+Replaces copy button on changed rows (copy button returns when reset).
+
+### Collapsible CSS Groups
+All groups (Layout, Spacing, Typography, Visual, Other) have chevron toggles.
+Variables block is also collapsible.
+A11Y and Element Style sections are always visible (no toggle needed).
+
+### A11Y Inline Section
+Always-open block at the bottom of the Styles tab. Three rows:
+- **Contrast** — computed ratio + AA (4.5:1) / AAA (7:1) pass/fail badges
+- **aria-label** — value if present, amber "Missing" badge if absent
+- **role** — implicit ARIA role inferred from tag name
+
+Contrast is computed via canvas `getImageData` on `fontColor` vs `backgroundColor`.
+No external library needed.
+
+---
+
+## AI Bridge — Phase 3 Spec
+
+Button in Inspector that packages element context (CSS, HTML, box model, variables) into a structured prompt.
+
+**Delivery mode (ships first):** Link-out to Claude.ai or ChatGPT — zero setup.
+
+**Preset intents:**
+- Explain layout
+- Why is this breaking on mobile?
+- Convert to Tailwind
+- Improve accessibility
+
+**Context depth toggle:** element only / element + ancestors / full chain
+
+---
+
+## Data Model
+
+`InspectorElementData` (in `src/tools/inspector/index.ts`):
+
+```ts
+{
+  tagName, id, classes,
+  computedStyles,          // matched CSS rules (not full computed styles)
+  cssVars,                 // resolved var(--x) values
+  ancestors, children,     // BreadcrumbNode[] for relations nav
+  boxModel,                // margin/border/padding/content rect
+  fonts,                   // family, size, weight, lineHeight, color
+  outerHTML,               // capped at 5000 chars
+  twClasses,               // Tailwind classes on this element
+  hasTailwind,             // whether the page uses Tailwind (cached)
+}
+```
+
+---
 
 ## Architecture
 
@@ -131,116 +144,51 @@ Then load the `dist/` folder as an unpacked extension.
                                                             (React app in iframe)
 ```
 
-- **Popup** — toolbar icon UI, quick tool launcher
-- **Background** — service worker, routes messages between contexts
-- **Content script** — injected into every page, mounts the floating panel iframe
-- **Panel** — full React app running inside the iframe, hosts all tools
+**Message types (content ↔ panel):**
+- `NAVIGATE_TO` — direction: `ancestor | child | sibling`, with `steps`, `childIndex`, or `delta`
+- `LOCK_ELEMENT` / `UNLOCK_ELEMENT`
+- `APPLY_STYLE` — prop + value (empty string disables)
+- `APPLY_OUTERHTML`
+- `SET_BOX_MODE`
+- `INSPECTOR_DATA` / `INSPECTOR_LOCKED` / `INSPECTOR_UNLOCKED`
 
------
+---
 
 ## Project Structure
 
 ```
 devlens/
-├── public/
-│   ├── manifest.json
-│   └── icons/
 ├── src/
-│   ├── background/        # Service worker
-│   ├── content/           # Page injection + panel mount
-│   ├── panel/             # Root panel shell + navigation
-│   ├── popup/             # Toolbar popup
-│   ├── shared/            # Theme, messaging, hooks, clipboard
-│   └── tools/
-│       ├── inspector/     # Element inspector + CSS editor + Tailwind converter
-│       ├── eyedropper/    # Color picker
-│       ├── tokens/        # Design token extractor
-│       ├── ai-bridge/     # AI context tool (planned)
-│       ├── assets/        # Asset extractor + SVG optimizer (planned)
-│       ├── responsive/    # Viewport previewer (planned)
-│       ├── screenshot/    # Screenshot tool (planned)
-│       └── debug/         # Debug console (under evaluation)
-├── panel.html
-├── popup.html
+│   ├── background/index.ts        # Service worker
+│   ├── content/index.ts           # Injected into pages — panel mount + message handling
+│   ├── popup/                     # Extension popup
+│   ├── panel/                     # Side panel shell (tab router)
+│   ├── tools/
+│   │   ├── inspector/
+│   │   │   ├── index.ts           # extractElementData, Tailwind detection, navigation
+│   │   │   └── InspectorPanel.tsx # Full inspector UI
+│   │   ├── eyedropper/
+│   │   └── tokens/
+│   └── shared/
+│       ├── theme.ts               # Color tokens (S.surface, S.border, etc.)
+│       ├── messaging.ts           # postToParent / postToPanel helpers
+│       ├── clipboard.ts
+│       └── hooks.ts               # useHover
+├── eslint.config.js
+├── tsconfig.json
 ├── vite.config.ts
-├── tailwind.config.js
-└── package.json
+└── tailwind.config.js
 ```
 
------
+---
 
-## Roadmap
+## Code Quality
 
-|Priority|Phase|Tool                                                         |Status            |
-|--------|-----|-------------------------------------------------------------|------------------|
-|1       |1    |Foundation — popup, panel, shortcuts, messaging              |✅ Done            |
-|2       |2    |Inspector + Color Eyedropper + Token Extractor               |✅ Done            |
-|3       |2b   |Inspector UI redesign (Figma) + Copy as Tailwind             |🔄 In progress     |
-|4       |3    |AI Bridge                                                    |⏳ Planned         |
-|5       |—    |Token Extractor expansion — Figma Variables, Style Dictionary|⏳ Planned         |
-|6       |4    |Assets Extractor + SVG optimization (SVGO)                   |⏳ Planned         |
-|7       |—    |Pause. Gather user feedback. Re-evaluate.                    |                  |
-|8       |5    |Responsive Viewer + sync-scroll                              |⏳ Planned         |
-|9       |6    |Screenshot + Editor                                          |⏳ Planned         |
-|10      |7    |Debug Tools                                                  |⏳ Under evaluation|
+ESLint 9 flat config with TypeScript strict mode. Run:
 
-### Phase 2b — Inspector redesign (in progress)
-
-- Implementing Figma design across both `master` and `design/ux-improvements` branches
-- New navigation sidebar with per-tool accent colors and active indicator strip
-- Code blocks component system — collapsible groups, checkboxes, color swatches, CSS var highlighting
-- Filter bar, Copy as Tailwind button
-- Font download — self-hosted font detection and one-click download in Fonts tab
-- A11y inline section — contrast ratio badge + quick warnings at bottom of Styles tab, no new navigation item needed
-
-### Phase 3 — AI Bridge (full spec)
-
-**Prompt format**
-
-```
-I'm inspecting an element on a webpage. Here is its context:
-
-ELEMENT: <a class="btn btn-primary" href="/checkout">
-
-CSS (matched rules):
-  display: flex
-  align-items: center
-  padding: 12px 24px
-  background: linear-gradient(...)
-
-BOX MODEL:
-  margin: 0 0 16px 0
-  padding: 12px 24px
-  width: 280px, height: 44px
-
-CSS VARIABLES IN USE:
-  --primary: #6366f1
-  --radius: 8px
-
-QUESTION: Why is this element not vertically centered in its parent?
+```bash
+npm run lint       # check
+npm run lint:fix   # auto-fix
 ```
 
-**Build order**
-
-1. Prompt formatter function
-1. Intent selector UI (presets + free text)
-1. Option A — link-out to Claude.ai
-1. Option B — in-panel response via user API key
-1. Right-click context menu integration
-
-**Decisions needed before build starts**
-
-- Option A or B first?
-- Button location — Inspector header, dedicated AI tab, or both?
-- Context depth — element only, or full ancestor chain, or user-controlled toggle?
-
------
-
-## Stack
-
-- **React** + **TypeScript**
-- **Tailwind CSS**
-- **Vite**
-- **Lucide Icons**
-- **Chrome Extensions Manifest V3**
-- **GitHub Actions** — auto-release on push to `design/ux-improvements`
+Zero errors, zero warnings policy enforced.

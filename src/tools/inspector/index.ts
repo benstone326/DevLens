@@ -21,6 +21,8 @@ export interface InspectorElementData {
   }
   fonts: { family: string; size: string; weight: string; lineHeight: string; color: string }
   outerHTML: string
+  twClasses: string[]    // Tailwind classes on this element (empty if none)
+  hasTailwind: boolean   // whether the page uses Tailwind at all
 }
 
 // Properties to always exclude even if found in stylesheets (browser internals / noise)
@@ -101,6 +103,42 @@ function applyDeclaration(style: CSSStyleDeclaration, result: Record<string, str
     if (prop.startsWith('border-') && /^var\(--tw-/.test(val)) continue
     result[prop] = val
   }
+}
+
+
+// ─── Tailwind detection ───────────────────────────────────────────────────────
+// Check if the page uses Tailwind by looking for __tailwind global, Tailwind
+// stylesheet links, or known Tailwind utility class patterns in the DOM
+function detectTailwind(): boolean {
+  // 1. Vite/CRA injects __tailwind global
+  if ('__tailwind' in window) return true
+  // 2. Stylesheet href contains 'tailwind'
+  for (let i = 0; i < document.styleSheets.length; i++) {
+    const href = document.styleSheets[i].href ?? ''
+    if (href.includes('tailwind')) return true
+  }
+  // 3. Sample up to 50 elements — if any have 3+ Tailwind-pattern classes, it's Tailwind
+  const TW_CLASS = /^(flex|grid|block|inline|hidden|absolute|relative|fixed|sticky|text-|font-|bg-|border|rounded|p-|px-|py-|pt-|pb-|pl-|pr-|m-|mx-|my-|mt-|mb-|ml-|mr-|w-|h-|min-|max-|gap-|space-|items-|justify-|self-|col-|row-|z-|overflow-|cursor-|opacity-|shadow|ring|transition|duration|ease|hover:|focus:|active:|sm:|md:|lg:|xl:)/
+  const elements = Array.from(document.querySelectorAll('[class]')).slice(0, 50)
+  for (const el of elements) {
+    const classes = Array.from(el.classList)
+    const twCount = classes.filter(c => TW_CLASS.test(c)).length
+    if (twCount >= 3) return true
+  }
+  return false
+}
+
+// Cache Tailwind detection per page load — expensive to run on every element
+let _hasTailwindCache: boolean | null = null
+function hasTailwindCached(): boolean {
+  if (_hasTailwindCache === null) _hasTailwindCache = detectTailwind()
+  return _hasTailwindCache
+}
+
+// Extract Tailwind classes from an element's class list
+function extractTwClasses(el: Element): string[] {
+  const TW_CLASS = /^(flex|grid|block|inline|hidden|absolute|relative|fixed|sticky|text-|font-|bg-|border|rounded|p-|px-|py-|pt-|pb-|pl-|pr-|m-|mx-|my-|mt-|mb-|ml-|mr-|w-|h-|min-|max-|gap-|space-|items-|justify-|self-|col-|row-|z-|overflow-|cursor-|opacity-|shadow|ring|transition|duration|ease|hover:|focus:|active:|sm:|md:|lg:|xl:)/
+  return Array.from(el.classList).filter(c => TW_CLASS.test(c))
 }
 
 function nodeToBreadcrumb(el: Element, index: number): BreadcrumbNode {
@@ -186,6 +224,8 @@ export function extractElementData(el: Element): InspectorElementData {
     outerHTML: (el as HTMLElement).outerHTML.length > 5000
       ? (el as HTMLElement).outerHTML.slice(0, 5000) + '\n<!-- [DevLens: truncated] -->'
       : (el as HTMLElement).outerHTML,
+    hasTailwind: hasTailwindCached(),
+    twClasses: extractTwClasses(el),
   }
 }
 
@@ -317,11 +357,11 @@ function showBoxOverlay(el: Element) {
 
 function onMouseMove(e: MouseEvent) {
   // Suppress all highlighting during panel drag
-  if ((window as any).__devlens_inspector_enabled === false) return
+  if (window.__devlens_inspector_enabled === false) return
   const target = e.target as Element
   if (!target || target.closest('#devlens-root') || target.id === 'devlens-inspector-overlay') return
   // Track last hovered element so LOCK_ELEMENT message handler can lock it
-  ;(window as any).__devlens_last_hovered = target
+  window.__devlens_last_hovered = target
   if (isLocked) {
     // Show hover highlight without touching locked overlay or panel data
     highlightHover(target)
@@ -337,7 +377,7 @@ function onClick(e: MouseEvent) {
   if (!target || target.closest('#devlens-root')) return
   e.preventDefault()
   e.stopPropagation()
-  const iframe = (window as any).__devlens_iframe as HTMLIFrameElement | null
+  const iframe = window.__devlens_iframe
 
   if (isLocked && target === lastTarget) {
     isLocked = false
@@ -347,9 +387,9 @@ function onClick(e: MouseEvent) {
   } else {
     isLocked = true
     lastTarget = target
-    ;(window as any).__devlens_locked_el = target
-    if (!(window as any).__devlens_original_styles)
-      ;(window as any).__devlens_original_styles = (target as HTMLElement).getAttribute('style') ?? ''
+    window.__devlens_locked_el = target
+    if (!window.__devlens_original_styles)
+      window.__devlens_original_styles = (target as HTMLElement).getAttribute('style') ?? ''
     hideHoverOverlay()
     if (overlay) overlay.style.borderColor = '#f59e0b'
     highlightElement(target)
