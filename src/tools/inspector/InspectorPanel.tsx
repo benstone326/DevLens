@@ -797,8 +797,10 @@ function RelationsBar({ data, canEdit, onToggleLock }: {
     + (data.id ? `#${data.id}` : '')
     + data.classes.slice(0, 2).map((c: string) => `.${c}`).join('')
 
-  const parent = data.ancestors[data.ancestors.length - 1] ?? null
-  const child  = data.children[0] ?? null
+  const parent      = data.ancestors[data.ancestors.length - 1] ?? null
+  const child       = data.children[0] ?? null
+  const siblingPrev = data.siblingPrev ?? null
+  const siblingNext = data.siblingNext ?? null
 
   return (
     <div className="px-3 pb-2 flex flex-col gap-1.5">
@@ -822,12 +824,16 @@ function RelationsBar({ data, canEdit, onToggleLock }: {
         ) : null}
       </button>
 
-      {/* Relations row — Parent + Child only */}
+      {/* Relations 2×2 grid */}
       <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 1fr' }}>
-        <RelationPill label="Parent" node={parent} canNavigate={canEdit}
+        <RelationPill label="Parent"    node={parent}      canNavigate={canEdit}
           onClick={() => postToParent({ type: 'NAVIGATE_TO', direction: 'ancestor', steps: 1 })} />
-        <RelationPill label="Child"  node={child}  canNavigate={canEdit}
+        <RelationPill label="Child"     node={child}       canNavigate={canEdit}
           onClick={() => postToParent({ type: 'NAVIGATE_TO', direction: 'child', childIndex: 0 })} />
+        <RelationPill label="Sibling ↑" node={siblingPrev} canNavigate={canEdit}
+          onClick={() => postToParent({ type: 'NAVIGATE_TO', direction: 'sibling', delta: -1 })} />
+        <RelationPill label="Sibling ↓" node={siblingNext} canNavigate={canEdit}
+          onClick={() => postToParent({ type: 'NAVIGATE_TO', direction: 'sibling', delta: 1 })} />
       </div>
     </div>
   )

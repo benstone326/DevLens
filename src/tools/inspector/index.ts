@@ -23,6 +23,8 @@ export interface InspectorElementData {
   outerHTML: string
   twClasses: string[]    // Tailwind classes on this element (empty if none)
   hasTailwind: boolean   // whether the page uses Tailwind at all
+  siblingPrev: BreadcrumbNode | null   // previous sibling element
+  siblingNext: BreadcrumbNode | null   // next sibling element
 }
 
 // Properties to always exclude even if found in stylesheets (browser internals / noise)
@@ -169,6 +171,19 @@ function extractChildren(el: Element): BreadcrumbNode[] {
     .map((c, i) => nodeToBreadcrumb(c, i))
 }
 
+function extractSiblings(el: Element): { prev: BreadcrumbNode | null; next: BreadcrumbNode | null } {
+  const parent = el.parentElement
+  if (!parent) return { prev: null, next: null }
+  const siblings = (Array.from(parent.children) as Element[]).filter(
+    (c: Element) => c.id !== 'devlens-root' && !c.id?.startsWith('devlens')
+  )
+  const idx = siblings.indexOf(el)
+  return {
+    prev: idx > 0                    ? nodeToBreadcrumb(siblings[idx - 1], idx - 1) : null,
+    next: idx < siblings.length - 1  ? nodeToBreadcrumb(siblings[idx + 1], idx + 1) : null,
+  }
+}
+
 export function extractElementData(el: Element): InspectorElementData {
   const computed = window.getComputedStyle(el)
   const rect = el.getBoundingClientRect()
@@ -226,6 +241,7 @@ export function extractElementData(el: Element): InspectorElementData {
       : (el as HTMLElement).outerHTML,
     hasTailwind: hasTailwindCached(),
     twClasses: extractTwClasses(el),
+    ...(() => { const s = extractSiblings(el); return { siblingPrev: s.prev, siblingNext: s.next } })(),
   }
 }
 
