@@ -1,6 +1,6 @@
 import { copyToClipboard } from '../../shared/clipboard'
 import React, { useState, useRef, useEffect, useMemo } from 'react'
-import { Copy, Check, Box, Type, Palette, Code, ChevronUp, ChevronDown, Search, X, Lock } from 'lucide-react'
+import { Copy, Check, Box, Type, Palette, Code, ChevronUp, ChevronDown, X, Lock } from 'lucide-react'
 import { S } from '../../shared/theme'
 import { postToParent } from '../../shared/messaging'
 import { useHover } from '../../shared/hooks'
@@ -346,21 +346,26 @@ function computeContrast(fg: string, bg: string): number {
 }
 
 function Badge({ pass, label, variant }: { pass: boolean; label: string; variant?: 'amber' }) {
-  const c = variant === 'amber'
-    ? { bg: 'rgba(245,158,11,0.3)', border: '#f59e0b', text: '#f59e0b' }
+  const col = variant === 'amber'
+    ? { bg: 'rgba(245,158,11,0.3)', text: '#f59e0b' }
     : pass
-      ? { bg: 'rgba(34,197,94,0.3)',  border: '#22c55e', text: '#22c55e' }
-      : { bg: 'rgba(239,68,68,0.3)',  border: '#ef4444', text: '#ef4444' }
+      ? { bg: 'rgba(34,197,94,0.3)',  text: '#22c55e' }
+      : { bg: 'rgba(239,68,68,0.3)',  text: '#ef4444' }
   return (
     <div className="flex items-center gap-0.5 px-1 py-0.5 rounded"
-         style={{ background: c.bg, border: `1px solid ${c.border}` }}>
+         style={{ background: col.bg }}>
       {variant === 'amber'
-        ? <svg width="6" height="6" viewBox="0 0 6 6" fill="none"><path d="M3 1V3.5M3 4.5V5" stroke={c.text} strokeWidth="1.2" strokeLinecap="round"/></svg>
+        /* proper "?" icon — circle with question mark */
+        ? <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+            <circle cx="4" cy="4" r="3" stroke={col.text} strokeWidth="1"/>
+            <path d="M3 3c0-.6.45-1 1-1s1 .4 1 1c0 .5-.4.7-.8.9C3.8 4.1 3.75 4.4 3.75 4.7" stroke={col.text} strokeWidth="1" strokeLinecap="round"/>
+            <circle cx="4" cy="5.75" r="0.35" fill={col.text}/>
+          </svg>
         : pass
-          ? <svg width="6" height="6" viewBox="0 0 6 6" fill="none"><path d="M1 3L2.5 4.5L5 1.5" stroke={c.text} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          : <svg width="6" height="6" viewBox="0 0 6 6" fill="none"><path d="M1 1L5 5M5 1L1 5" stroke={c.text} strokeWidth="1.2" strokeLinecap="round"/></svg>
+          ? <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1.5 4L3.5 6L6.5 2" stroke={col.text} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          : <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M2 2L6 6M6 2L2 6" stroke={col.text} strokeWidth="1.2" strokeLinecap="round"/></svg>
       }
-      <span className="text-[9px] font-bold" style={{ color: c.text }}>{label}</span>
+      <span className="text-[9px] font-bold" style={{ color: col.text }}>{label}</span>
     </div>
   )
 }
@@ -457,19 +462,22 @@ function StylesBlock({ data, canEdit }: { data: InspectorElementData; canEdit: b
   return (
     <div className="px-3 pb-3 flex flex-col gap-2 flex-1">
 
-      {/* Filter bar */}
-      <div className="flex items-center gap-2 rounded px-2 h-[22px]"
-           style={{ background: '#111827', border: '1px solid #374151' }}>
-        <Search size={10} style={{ color: '#6b7280', flexShrink: 0 }} />
+      {/* Filter bar — white bg, light border per Figma */}
+      <div className="flex items-center gap-1 rounded px-1.5 h-[22px]"
+           style={{ background: '#f9fafb', border: '1px solid #e5e7eb' }}>
+        {/* filter/funnel icon 8×8 */}
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" style={{ flexShrink: 0 }}>
+          <path d="M1 1.5h6M2 4h4M3 6.5h2" stroke="#6b7280" strokeWidth="1.1" strokeLinecap="round"/>
+        </svg>
         <input
           type="text" value={query}
           onChange={e => setQuery(e.target.value)}
-          placeholder="Filter properties…"
-          className="flex-1 bg-transparent outline-none text-[10px] font-mono"
-          style={{ color: '#cbd5e1', caretColor: '#818cf8' }}
+          placeholder="Filter properties"
+          className="flex-1 bg-transparent outline-none font-mono"
+          style={{ color: '#374151', caretColor: '#6366f1', fontSize: 8 }}
           spellCheck={false}
         />
-        {query && <button onClick={() => setQuery('')} style={{ color: '#6b7280' }}><X size={10} /></button>}
+        {query && <button onClick={() => setQuery('')} style={{ color: '#9ca3af' }}><X size={8} /></button>}
       </div>
 
       {/* TW classes bar */}
@@ -480,9 +488,10 @@ function StylesBlock({ data, canEdit }: { data: InspectorElementData; canEdit: b
            style={{ color: '#6b7280' }}>
         <span>Element Style</span>
         <span className="flex items-center gap-1 font-normal normal-case tracking-normal px-1.5 py-0.5 rounded"
-              style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid #f59e0b', color: '#f59e0b' }}>
+              style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>
           <svg width="8" height="8" viewBox="0 0 8 8" fill="none" style={{ flexShrink: 0 }}>
-            <path d="M4 1a3 3 0 100 6A3 3 0 004 1zm0 1v2l1.5 1" stroke="#f59e0b" strokeWidth="1.2" strokeLinecap="round"/>
+            <rect x="1.5" y="3.5" width="5" height="4" rx="0.75" fill="none" stroke="#f59e0b" strokeWidth="1.1"/>
+            <path d="M2.5 3.5V2.5a1.5 1.5 0 013 0v1" stroke="#f59e0b" strokeWidth="1.1" strokeLinecap="round"/>
           </svg>
           <span style={{ fontSize: 9 }}>{selectorLabel}</span>
         </span>
@@ -771,8 +780,8 @@ function RelationPill({ label, node, canNavigate, onClick }: {
       onClick={!disabled ? onClick : undefined}
       className="flex items-center gap-1 px-1.5 py-0.5 rounded w-full transition-colors"
       style={{
-        background: disabled ? 'transparent' : h ? '#6366f115' : '#f9fafb',
-        border:     `1px solid ${disabled ? '#1e293b' : h ? '#6366f133' : '#e5e7eb'}`,
+        background: h && !disabled ? '#6366f115' : '#f9fafb',
+        border:     `1px solid ${h && !disabled ? '#6366f133' : '#e5e7eb'}`,
         cursor:     disabled ? 'default' : 'pointer',
         minWidth:   0,
       }}
@@ -786,13 +795,10 @@ function RelationPill({ label, node, canNavigate, onClick }: {
   )
 }
 
-function RelationsBar({ data, canEdit, onToggleLock }: {
+function RelationsBar({ data, canEdit }: {
   data:         InspectorElementData
   canEdit:      boolean
-  onToggleLock: () => void
 }) {
-  const [chipHovered, chipHoverProps] = useHover()
-
   const elementLabel = data.tagName.toUpperCase()
     + (data.id ? `#${data.id}` : '')
     + data.classes.slice(0, 2).map((c: string) => `.${c}`).join('')
@@ -804,26 +810,6 @@ function RelationsBar({ data, canEdit, onToggleLock }: {
 
   return (
     <div className="px-3 pb-2 flex flex-col gap-1.5">
-      {/* Current element chip — lock toggle */}
-      <button
-        onClick={onToggleLock}
-        title={canEdit ? 'Unlock element' : 'Lock element for editing'}
-        {...chipHoverProps}
-        className="flex items-center gap-1.5 px-2 py-1.5 rounded w-full text-left transition-colors"
-        style={{ background: S.surface, border: `1px solid ${canEdit ? '#f59e0b55' : chipHovered ? '#6366f133' : S.border}` }}
-      >
-        <span className="text-[11px] font-mono font-bold flex-1 truncate" style={{ color: '#6366f1' }}>{elementLabel}</span>
-        {canEdit ? (
-          <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded shrink-0" style={{ background: '#f59e0b18', color: '#f59e0b' }}>
-            <Lock size={8} /> locked
-          </span>
-        ) : chipHovered ? (
-          <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded shrink-0" style={{ background: '#6366f115', color: '#818cf8' }}>
-            <Lock size={8} /> click to lock
-          </span>
-        ) : null}
-      </button>
-
       {/* Relations 2×2 grid */}
       <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 1fr' }}>
         <RelationPill label="Parent"    node={parent}      canNavigate={canEdit}
@@ -883,15 +869,21 @@ export default function InspectorPanel({ data, _isActive }: Props) {
 
   return (
     <div className="flex flex-col h-full">
-      <RelationsBar data={data} canEdit={canEdit} onToggleLock={handleToggleLock} />
+      <RelationsBar data={data} canEdit={canEdit} />
 
-      <div className="grid px-3 gap-1 pb-2" style={{ gridTemplateColumns: '1fr 1fr 1fr 1fr' }}>
+      {/* Tabs — underline style per Figma */}
+      <div className="flex px-3" style={{ borderBottom: '1px solid #e5e7eb' }}>
         {tabs.map(tab => (
           <button key={tab.id} onClick={() => switchTab(tab.id)}
-                  className="flex items-center justify-center gap-1 py-1.5 rounded text-[11px] font-medium transition-all"
-                  style={{ background: activeTab === tab.id ? '#6366f122' : S.surface,
-                           color:      activeTab === tab.id ? '#818cf8'   : S.sub,
-                           border:    `1px solid ${activeTab === tab.id ? '#6366f133' : S.border}` }}>
+                  className="flex items-center gap-1 px-2 py-3 text-[11px] font-medium transition-all relative shrink-0"
+                  style={{
+                    color:        activeTab === tab.id ? '#6366f1' : '#6b7280',
+                    borderBottom: activeTab === tab.id ? '2px solid #6366f1' : '2px solid transparent',
+                    marginBottom: -1,
+                    background:   'transparent',
+                    border:       'none',
+                    borderBottom: activeTab === tab.id ? '2px solid #6366f1' : '2px solid transparent',
+                  }}>
             {tab.icon}{tab.label}
           </button>
         ))}
