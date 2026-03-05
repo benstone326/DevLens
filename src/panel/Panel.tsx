@@ -1,34 +1,34 @@
 import React, { useEffect, useState } from 'react'
-import { Search, Palette, Monitor, Camera, FolderOpen, Bug, X, Zap, GripHorizontal, PanelRight, Pipette } from 'lucide-react'
+import { X, Search, Palette, Monitor, Camera, FolderOpen, Bug, Pipette, HelpCircle, Settings, Zap } from 'lucide-react'
 import InspectorPanel from '../tools/inspector/InspectorPanel'
 import EyedropperPanel from '../tools/eyedropper/EyedropperPanel'
 import TokensPanel from '../tools/tokens/TokensPanel'
-import { S } from '../shared/theme'
 import { postToParent } from '../shared/messaging'
 import { useHover } from '../shared/hooks'
 import type { InspectorElementData } from '../tools/inspector/index'
 
+// ─── Types ────────────────────────────────────────────────────────────────────
 type Tool = 'inspector' | 'eyedropper' | 'tokens' | 'responsive' | 'screenshot' | 'assets' | 'debug'
 
 interface NavItem {
   id:    Tool
   label: string
-  phase: string
   icon:  React.ReactNode
   color: string
 }
 
+// ─── Nav items ────────────────────────────────────────────────────────────────
 const NAV_ITEMS: NavItem[] = [
-  { id: 'inspector',  label: 'Inspector',  phase: '',        icon: <Search     size={15} />, color: '#6366f1' },
-  { id: 'eyedropper', label: 'Eyedropper', phase: '',        icon: <Palette    size={15} />, color: '#f43f5e' },
-  { id: 'tokens',     label: 'Tokens',     phase: '',        icon: <Pipette    size={15} />, color: '#10b981' },
-  { id: 'responsive', label: 'Responsive', phase: 'Phase 5', icon: <Monitor    size={15} />, color: '#f59e0b' },
-  { id: 'screenshot', label: 'Screenshot', phase: 'Phase 6', icon: <Camera     size={15} />, color: '#3b82f6' },
-  { id: 'assets',     label: 'Assets',     phase: 'Phase 4', icon: <FolderOpen size={15} />, color: '#8b5cf6' },
-  { id: 'debug',      label: 'Debug',      phase: 'Phase 7', icon: <Bug        size={15} />, color: '#ec4899' },
+  { id: 'inspector',  label: 'Inspector',    icon: <Search     size={16} />, color: '#6366f1' },
+  { id: 'eyedropper', label: 'Color Picker', icon: <Palette    size={16} />, color: '#ef4444' },
+  { id: 'tokens',     label: 'Tokens',       icon: <Pipette    size={16} />, color: '#10b981' },
+  { id: 'responsive', label: 'Responsive',   icon: <Monitor    size={16} />, color: '#f59e0b' },
+  { id: 'screenshot', label: 'Screenshot',   icon: <Camera     size={16} />, color: '#3b82f6' },
+  { id: 'assets',     label: 'Assets',       icon: <FolderOpen size={16} />, color: '#8b5cf6' },
+  { id: 'debug',      label: 'Debug',        icon: <Bug        size={16} />, color: '#ec4899' },
 ]
 
-// ─── Placeholder for unbuilt tools ───────────────────────────────────────────
+// ─── Placeholder ──────────────────────────────────────────────────────────────
 function PlaceholderTool({ item }: { item: NavItem }) {
   return (
     <div className="flex flex-col items-center justify-center h-full gap-4 px-6 text-center">
@@ -37,9 +37,9 @@ function PlaceholderTool({ item }: { item: NavItem }) {
         <Zap size={24} style={{ color: item.color }} />
       </div>
       <div>
-        <p className="text-sm font-semibold" style={{ color: S.text }}>{item.label}</p>
-        <p className="text-xs mt-1.5 leading-relaxed" style={{ color: S.sub }}>
-          Coming in {item.phase || 'a future phase'}
+        <p className="text-sm font-semibold" style={{ color: '#111827' }}>{item.label}</p>
+        <p className="text-xs mt-1.5 leading-relaxed" style={{ color: '#6b7280' }}>
+          Coming in a future phase
         </p>
       </div>
       <div className="text-xs px-3 py-1.5 rounded-full font-medium"
@@ -50,87 +50,226 @@ function PlaceholderTool({ item }: { item: NavItem }) {
   )
 }
 
-// ─── Nav icon button ──────────────────────────────────────────────────────────
+// ─── NavButton ────────────────────────────────────────────────────────────────
+// Active:   tool color at 10% bg opacity + left 2×16px indicator bar
+// Hover:    tool color at 10% bg opacity, no indicator
+// Inactive: transparent bg, icon #9ca3af
 function NavButton({ item, isActive, onClick }: { item: NavItem; isActive: boolean; onClick: () => void }) {
   const [hovered, hoverProps] = useHover()
+  const showBg = isActive || hovered
   return (
     <button
       onClick={onClick}
       title={item.label}
       {...hoverProps}
-      className="relative flex items-center justify-center shrink-0 group"
       style={{
-        width: 36, height: 36, borderRadius: 12, border: 'none',
-        background: isActive ? `${item.color}1a` : hovered ? `${item.color}0d` : 'transparent',
-        color:      isActive ? item.color : hovered ? item.color : '#aaaaaa',
-        transition: 'background 0.15s, color 0.15s',
+        position:       'relative',
+        width:          36,
+        height:         36,
+        borderRadius:   12,
+        border:         'none',
+        flexShrink:     0,
+        background:     showBg ? `${item.color}1a` : 'transparent',
+        color:          showBg ? item.color : '#9ca3af',
+        transition:     'background 0.12s, color 0.12s',
+        cursor:         'pointer',
+        display:        'flex',
+        alignItems:     'center',
+        justifyContent: 'center',
       }}
     >
       {item.icon}
+      {/* Left indicator — active only */}
       {isActive && (
-        <div className="absolute" style={{
-          left: 0, top: '50%', transform: 'translateY(-50%)',
-          width: 2, height: 16, background: item.color,
+        <div style={{
+          position:     'absolute',
+          left:         0,
+          top:          '50%',
+          transform:    'translateY(-50%)',
+          width:        2,
+          height:       16,
+          background:   item.color,
           borderRadius: '0 999px 999px 0',
         }} />
       )}
-      <div className="absolute left-full ml-2 px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap
-                      opacity-0 group-hover:opacity-100 pointer-events-none z-10"
-           style={{ background: S.bgDeep, color: S.text, border: `1px solid ${S.border}`,
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)', transition: 'opacity 0.15s' }}>
+      {/* Tooltip */}
+      <div style={{
+        position:       'absolute',
+        left:           'calc(100% + 8px)',
+        top:            '50%',
+        transform:      'translateY(-50%)',
+        padding:        '4px 8px',
+        borderRadius:   6,
+        fontSize:       11,
+        fontWeight:     500,
+        whiteSpace:     'nowrap',
+        background:     '#111827',
+        color:          '#f9fafb',
+        border:         '1px solid #374151',
+        boxShadow:      '0 4px 12px rgba(0,0,0,0.15)',
+        pointerEvents:  'none',
+        zIndex:         100,
+        opacity:        hovered ? 1 : 0,
+        transition:     'opacity 0.12s',
+      }}>
         {item.label}
-        <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent"
-             style={{ borderRightColor: S.bgDeep }} />
+        <div style={{
+          position:    'absolute',
+          right:       '100%',
+          top:         '50%',
+          transform:   'translateY(-50%)',
+          borderWidth: 4,
+          borderStyle: 'solid',
+          borderColor: 'transparent #111827 transparent transparent',
+        }} />
       </div>
     </button>
   )
 }
 
-// ─── Drag handle ──────────────────────────────────────────────────────────────
-function DragHandle({ onMouseDown }: { onMouseDown: (e: React.MouseEvent) => void }) {
+// ─── UtilButton ───────────────────────────────────────────────────────────────
+// Close / Settings / Help — 36×36, gray-100 hover bg, no indicator
+function UtilButton({
+  icon, title, onClick, onMouseDown, hoverColor, active,
+}: {
+  icon:         React.ReactNode
+  title:        string
+  onClick?:     () => void
+  onMouseDown?: (e: React.MouseEvent) => void
+  hoverColor?:  string
+  active?:      boolean
+}) {
   const [hovered, hoverProps] = useHover()
+  const showBg = hovered || active
   return (
-    <div onMouseDown={onMouseDown} title="Drag to move" {...hoverProps}
-         className="flex items-center justify-center cursor-grab active:cursor-grabbing shrink-0"
-         style={{ width: 36, height: 36, borderRadius: 12,
-                  color: hovered ? '#6366f1' : '#aaaaaa', transition: 'color 0.15s' }}>
-      <GripHorizontal size={14} />
-    </div>
-  )
-}
-
-// ─── Snap-back button ─────────────────────────────────────────────────────────
-function SnapButton({ onClick }: { onClick: () => void }) {
-  const [hovered, hoverProps] = useHover()
-  return (
-    <button onClick={onClick} title="Snap back to side" {...hoverProps}
-            className="flex items-center justify-center shrink-0"
-            style={{ width: 36, height: 36, borderRadius: 12, border: 'none',
-                     color: hovered ? '#10b981' : '#aaaaaa', transition: 'color 0.15s' }}>
-      <PanelRight size={14} />
+    <button
+      onClick={onClick}
+      onMouseDown={onMouseDown}
+      title={title}
+      {...hoverProps}
+      style={{
+        width:          36,
+        height:         36,
+        borderRadius:   12,
+        border:         'none',
+        flexShrink:     0,
+        background:     showBg ? (hoverColor ? `${hoverColor}1a` : '#e5e7eb') : 'transparent',
+        color:          showBg ? (hoverColor ?? '#374151') : '#9ca3af',
+        transition:     'background 0.12s, color 0.12s',
+        cursor:         onMouseDown ? 'grab' : 'pointer',
+        display:        'flex',
+        alignItems:     'center',
+        justifyContent: 'center',
+      }}
+    >
+      {icon}
     </button>
   )
 }
 
-// ─── Close button ─────────────────────────────────────────────────────────────
-function CloseButton({ onClick }: { onClick: () => void }) {
+// ─── Drag/Magnet button ────────────────────────────────────────────────────────
+// Snapped:  grip dots icon → drag to float
+// Floating: magnet icon   → click to snap back
+function DragOrMagnetButton({
+  isFloating, onMouseDown, onSnapBack,
+}: {
+  isFloating:  boolean
+  onMouseDown: (e: React.MouseEvent) => void
+  onSnapBack:  () => void
+}) {
   const [hovered, hoverProps] = useHover()
+
+  // Grip SVG (6 dots — matches Figma DragVertical)
+  const GripIcon = (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <circle cx="5.5" cy="4"  r="1.2" fill="currentColor" />
+      <circle cx="5.5" cy="8"  r="1.2" fill="currentColor" />
+      <circle cx="5.5" cy="12" r="1.2" fill="currentColor" />
+      <circle cx="10.5" cy="4"  r="1.2" fill="currentColor" />
+      <circle cx="10.5" cy="8"  r="1.2" fill="currentColor" />
+      <circle cx="10.5" cy="12" r="1.2" fill="currentColor" />
+    </svg>
+  )
+
+  // Magnet SVG (matches Figma 16/Magnet)
+  const MagnetIcon = (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M3 3.5V8a5 5 0 0010 0V3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="3"  y1="3.5" x2="3"  y2="1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="13" y1="3.5" x2="13" y2="1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  )
+
+  if (isFloating) {
+    // Magnet — click to snap back, amber color to signal action
+    return (
+      <button
+        onClick={onSnapBack}
+        title="Snap back to side"
+        {...hoverProps}
+        style={{
+          width:          36,
+          height:         36,
+          borderRadius:   12,
+          border:         'none',
+          flexShrink:     0,
+          background:     hovered ? 'rgba(245,158,11,0.1)' : 'transparent',
+          color:          hovered ? '#f59e0b' : '#9ca3af',
+          transition:     'background 0.12s, color 0.12s',
+          cursor:         'pointer',
+          display:        'flex',
+          alignItems:     'center',
+          justifyContent: 'center',
+        }}
+      >
+        {MagnetIcon}
+      </button>
+    )
+  }
+
+  // Grip — drag to float
   return (
-    <button onClick={onClick} title="Close DevLens" {...hoverProps}
-            className="ml-auto w-7 h-7 rounded-lg flex items-center justify-center"
-            style={{ color: hovered ? '#f43f5e' : S.sub,
-                     background: hovered ? '#f43f5e18' : 'transparent',
-                     border: 'none', transition: 'color 0.15s, background 0.15s' }}>
-      <X size={14} />
+    <button
+      onMouseDown={onMouseDown}
+      title="Drag to move"
+      {...hoverProps}
+      style={{
+        width:          36,
+        height:         36,
+        borderRadius:   12,
+        border:         'none',
+        flexShrink:     0,
+        background:     hovered ? '#e5e7eb' : 'transparent',
+        color:          hovered ? '#374151' : '#9ca3af',
+        transition:     'background 0.12s, color 0.12s',
+        cursor:         'grab',
+        display:        'flex',
+        alignItems:     'center',
+        justifyContent: 'center',
+      }}
+    >
+      {GripIcon}
     </button>
   )
 }
 
-// ─── Root panel ───────────────────────────────────────────────────────────────
+// ─── NavDivider ───────────────────────────────────────────────────────────────
+const NavDivider = () => (
+  <div style={{
+    width:      24,
+    height:     1,
+    background: '#e5e7eb',
+    flexShrink: 0,
+    margin:     '2px 0',
+  }} />
+)
+
+// ─── Root Panel ───────────────────────────────────────────────────────────────
 export default function Panel() {
   const [activeTool, setActiveTool]           = useState<Tool>('inspector')
   const [inspectorActive, setInspectorActive] = useState(false)
   const [inspectorData, setInspectorData]     = useState<InspectorElementData | null>(null)
+  const [isFloating, setIsFloating]           = useState(false)
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
@@ -142,6 +281,8 @@ export default function Panel() {
         setInspectorActive(false)
         setInspectorData(null)
       }
+      if (event.data?.type === 'PANEL_FLOATING')
+        setIsFloating(!!event.data.floating)
     }
     window.addEventListener('message', handleMessage)
     postToParent({ type: 'PANEL_READY' })
@@ -156,7 +297,7 @@ export default function Panel() {
       postToParent({ type: 'STOP_INSPECTOR' })
       setInspectorActive(false)
     }
-  }, [activeTool])
+  }, [activeTool, inspectorActive])
 
   function closePanel() {
     if (inspectorActive) postToParent({ type: 'STOP_INSPECTOR' })
@@ -173,11 +314,14 @@ export default function Panel() {
     window.addEventListener('mouseup', onMouseUp)
   }
 
-  const activeItem = NAV_ITEMS.find(n => n.id === activeTool)!
+  function onSnapBack() {
+    postToParent({ type: 'SNAP_BACK' })
+  }
 
   function renderTool() {
+    const activeItem = NAV_ITEMS.find(n => n.id === activeTool) ?? NAV_ITEMS[0]
     switch (activeTool) {
-      case 'inspector':  return <InspectorPanel data={inspectorData} isActive={inspectorActive} />
+      case 'inspector':  return <InspectorPanel data={inspectorData} _isActive={inspectorActive} />
       case 'eyedropper': return <EyedropperPanel />
       case 'tokens':     return <TokensPanel />
       default:           return <PlaceholderTool item={activeItem} />
@@ -185,55 +329,93 @@ export default function Panel() {
   }
 
   return (
-    <div className="flex h-full w-full overflow-hidden"
-         style={{ background: S.bg, borderRadius: '16px 0 0 16px',
-                  border: `1px solid ${S.border}`, boxShadow: '0 8px 40px rgba(0,0,0,0.2)' }}>
+    <div style={{
+      display:    'flex',
+      height:     '100%',
+      width:      '100%',
+      overflow:   'hidden',
+      background: '#f9fafb', // gray-50 — content area bg bleeds through
+    }}>
 
       {/* ── Sidebar ── */}
-      <nav className="flex flex-col items-center shrink-0"
-           style={{ width: 52, background: '#ffffff', borderRight: '1px solid #bbbbbb',
-                    paddingTop: 12, paddingBottom: 12, gap: 4 }}>
+      {/* Spec: 52px wide, padding 12px 0 (top/bottom only, no horizontal),
+               gap 4px, bg #f3f4f6 (gray-100), right border 1px #e5e7eb         */}
+      <nav style={{
+        width:          52,
+        flexShrink:     0,
+        background:     '#f3f4f6',
+        borderRight:    '1px solid #e5e7eb',
+        display:        'flex',
+        flexDirection:  'column',
+        alignItems:     'center',
+        paddingTop:     12,
+        paddingBottom:  12,
+        gap:            4,
+      }}>
 
-        {/* Logo */}
-        <div className="flex items-center justify-center shrink-0"
-             style={{ width: 36, height: 36, borderRadius: 12, background: '#000000' }}>
-          <Zap size={14} style={{ color: '#ffffff' }} />
-        </div>
+        {/* ① Close */}
+        <UtilButton
+          icon={<X size={16} />}
+          title="Close DevLens"
+          onClick={closePanel}
+          hoverColor="#ef4444"
+        />
 
-        <DragHandle onMouseDown={onDragHandleMouseDown} />
+        {/* ② Drag (snapped) / Magnet (floating) */}
+        <DragOrMagnetButton
+          isFloating={isFloating}
+          onMouseDown={onDragHandleMouseDown}
+          onSnapBack={onSnapBack}
+        />
 
         {/* Separator */}
-        <div style={{ width: 24, height: 1, background: '#bbbbbb', flexShrink: 0, margin: '4px 0' }} />
+        <NavDivider />
 
+        {/* ③–⑨ Tool buttons */}
         {NAV_ITEMS.map(item => (
-          <NavButton key={item.id} item={item}
-                     isActive={activeTool === item.id}
-                     onClick={() => setActiveTool(item.id)} />
+          <NavButton
+            key={item.id}
+            item={item}
+            isActive={activeTool === item.id}
+            onClick={() => setActiveTool(item.id)}
+          />
         ))}
 
+        {/* Push to bottom */}
         <div style={{ flex: 1 }} />
-        <SnapButton onClick={() => postToParent({ type: 'SNAP_BACK' })} />
+
+        {/* Separator */}
+        <NavDivider />
+
+        {/* ⑩ Settings */}
+        <UtilButton
+          icon={<Settings size={16} />}
+          title="Settings"
+        />
+
+        {/* ⑪ Help */}
+        <UtilButton
+          icon={<HelpCircle size={16} />}
+          title="Help"
+        />
+
       </nav>
 
-      {/* ── Main content ── */}
-      <div className="flex flex-col flex-1 min-w-0">
-        <div className="flex items-center gap-2 px-4 py-3 shrink-0"
-             style={{ borderBottom: `1px solid ${S.border}` }}>
-          <div className="w-6 h-6 rounded-md flex items-center justify-center"
-               style={{ background: `${activeItem.color}22`, color: activeItem.color }}>
-            {activeItem.icon}
-          </div>
-          <span className="text-sm font-semibold" style={{ color: S.text }}>{activeItem.label}</span>
-          {inspectorActive && activeTool === 'inspector' && (
-            <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full animate-pulse"
-                  style={{ background: '#6366f122', color: '#818cf8' }}>live</span>
-          )}
-          <CloseButton onClick={closePanel} />
-        </div>
-        <div className="flex-1 overflow-y-auto">
+      {/* ── Content area ── */}
+      {/* Spec: bg #f9fafb (gray-50) */}
+      <div style={{
+        flex:           1,
+        minWidth:       0,
+        display:        'flex',
+        flexDirection:  'column',
+        background:     '#f9fafb',
+        overflow:       'hidden',
+      }}>
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           {renderTool()}
         </div>
       </div>
+
     </div>
   )
 }

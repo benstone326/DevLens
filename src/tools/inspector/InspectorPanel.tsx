@@ -877,12 +877,12 @@ export default function InspectorPanel({ data, _isActive }: Props) {
           <button key={tab.id} onClick={() => switchTab(tab.id)}
                   className="flex items-center gap-1 px-2 py-3 text-[11px] font-medium transition-all relative shrink-0"
                   style={{
-                    color:        activeTab === tab.id ? '#6366f1' : '#6b7280',
-                    borderBottom: activeTab === tab.id ? '2px solid #6366f1' : '2px solid transparent',
-                    marginBottom: -1,
-                    background:   'transparent',
-                    border:       'none',
-                    borderBottom: activeTab === tab.id ? '2px solid #6366f1' : '2px solid transparent',
+                    color:         activeTab === tab.id ? '#6366f1' : '#6b7280',
+                    background:    'transparent',
+                    border:        'none',
+                    borderBottom:  activeTab === tab.id ? '2px solid #6366f1' : '2px solid transparent',
+                    marginBottom:  -1,
+                    paddingBottom: 10,
                   }}>
             {tab.icon}{tab.label}
           </button>

@@ -92,6 +92,7 @@ function snapBack() {
   const iframe = getIframe()
   if (!container || !iframe) return
   isFloating = false
+  postToPanel({ type: 'PANEL_FLOATING', floating: false })
   Object.assign(container.style, { left: '', top: '0', right: '0', height: '100vh', width: '360px' })
   iframe.style.transition = 'transform 0.25s cubic-bezier(0.4,0,0.2,1), border-radius 0.25s, box-shadow 0.25s'
   iframe.style.borderRadius = '16px 0 0 16px'
@@ -109,8 +110,11 @@ function postToPanel(msg: object) {
 
 function setupMessageBridge() {
   window.addEventListener('message', (event) => {
-    if (event.data?.source !== 'devlens-panel') return
+    // Security: only accept messages from our own iframe, not from page scripts
+    // that could spoof the `source` string.
     const iframe = getIframe()
+    if (event.source !== iframe?.contentWindow) return
+    if (event.data?.source !== 'devlens-panel') return
 
     switch (event.data.type) {
       case 'PANEL_READY':
@@ -277,6 +281,7 @@ function setupMessageBridge() {
             iframe.style.boxShadow = '0 8px 48px rgba(0,0,0,0.4)'
           }
           isFloating = true
+          postToPanel({ type: 'PANEL_FLOATING', floating: true })
         }
         if (iframe) iframe.style.pointerEvents = 'none'
         document.body.style.userSelect = 'none'
