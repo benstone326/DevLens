@@ -348,17 +348,12 @@ function Badge({ pass, label, variant }: { pass: boolean; label: string; variant
   return (
     <div className="flex items-center gap-0.5 px-1 py-0.5 rounded"
          style={{ background: col.bg }}>
-      {variant === 'amber'
-        /* proper "?" icon — circle with question mark */
-        ? <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-            <circle cx="4" cy="4" r="3" stroke={col.text} strokeWidth="1"/>
-            <path d="M3 3c0-.6.45-1 1-1s1 .4 1 1c0 .5-.4.7-.8.9C3.8 4.1 3.75 4.4 3.75 4.7" stroke={col.text} strokeWidth="1" strokeLinecap="round"/>
-            <circle cx="4" cy="5.75" r="0.35" fill={col.text}/>
-          </svg>
-        : pass
+      {/* amber variant (Missing) = text only per Figma 53:1082 */}
+      {variant !== 'amber' && (
+        pass
           ? <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1.5 4L3.5 6L6.5 2" stroke={col.text} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
           : <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M2 2L6 6M6 2L2 6" stroke={col.text} strokeWidth="1.2" strokeLinecap="round"/></svg>
-      }
+      )}
       <span className="text-[9px] font-bold" style={{ color: col.text }}>{label}</span>
     </div>
   )
@@ -525,52 +520,409 @@ function StylesBlock({ data, canEdit }: { data: InspectorElementData; canEdit: b
   )
 }
 
-// ─── CustomCSSBlock ───────────────────────────────────────────────────────────
-// Live-applies CSS as you type, exactly like DevTools.
-function CustomCSSBlock({ canEdit }: { canEdit: boolean }) {
-  const [text, setText] = useState('')
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+// ─── CSS Autocomplete data ────────────────────────────────────────────────────
+// Comprehensive property list + value suggestions, matching DevTools behaviour
+const CSS_PROPS: string[] = [
+  'align-content','align-items','align-self','animation','animation-delay',
+  'animation-direction','animation-duration','animation-fill-mode',
+  'animation-iteration-count','animation-name','animation-play-state',
+  'animation-timing-function','aspect-ratio',
+  'backdrop-filter','background','background-attachment','background-clip',
+  'background-color','background-image','background-origin','background-position',
+  'background-repeat','background-size','border','border-bottom','border-bottom-color',
+  'border-bottom-left-radius','border-bottom-right-radius','border-bottom-style',
+  'border-bottom-width','border-collapse','border-color','border-image','border-left',
+  'border-left-color','border-left-style','border-left-width','border-radius',
+  'border-right','border-right-color','border-right-style','border-right-width',
+  'border-spacing','border-style','border-top','border-top-color',
+  'border-top-left-radius','border-top-right-radius','border-top-style',
+  'border-top-width','border-width','bottom','box-shadow','box-sizing',
+  'clip-path','color','column-gap','columns','content','cursor',
+  'display','filter','flex','flex-basis','flex-direction','flex-flow',
+  'flex-grow','flex-shrink','flex-wrap','float','font','font-family',
+  'font-size','font-style','font-variant','font-weight',
+  'gap','grid','grid-area','grid-auto-columns','grid-auto-flow','grid-auto-rows',
+  'grid-column','grid-column-end','grid-column-gap','grid-column-start',
+  'grid-row','grid-row-end','grid-row-gap','grid-row-start',
+  'grid-template','grid-template-areas','grid-template-columns','grid-template-rows',
+  'height','justify-content','justify-items','justify-self',
+  'left','letter-spacing','line-height','list-style','list-style-type',
+  'margin','margin-bottom','margin-left','margin-right','margin-top',
+  'max-height','max-width','min-height','min-width',
+  'object-fit','object-position','opacity','order','outline','outline-color',
+  'outline-offset','outline-style','outline-width','overflow','overflow-x','overflow-y',
+  'padding','padding-bottom','padding-left','padding-right','padding-top',
+  'place-content','place-items','place-self','pointer-events','position',
+  'resize','right','rotate','row-gap',
+  'scroll-behavior','scroll-margin','scroll-margin-top','scroll-padding',
+  'text-align','text-decoration','text-decoration-color','text-decoration-line',
+  'text-decoration-style','text-indent','text-overflow','text-shadow',
+  'text-transform','top','transform','transform-origin','transition',
+  'transition-delay','transition-duration','transition-property',
+  'transition-timing-function',
+  'vertical-align','visibility','white-space','width','will-change',
+  'word-break','word-spacing','z-index',
+]
 
-  // Parse and send each valid prop:value pair to the content script
-  function applyLive(raw: string) {
-    if (!canEdit) return
-    const lines = raw.split('\n').map(l => l.trim()).filter(Boolean)
-    for (const line of lines) {
-      const colonIdx = line.indexOf(':')
-      if (colonIdx < 1) continue
-      const prop = line.slice(0, colonIdx).trim()
-      const val  = line.slice(colonIdx + 1).replace(/;\s*$/, '').trim()
-      if (!prop) continue
-      // Empty value removes the property (live disable)
-      window.parent.postMessage(
-        { source: 'devlens-panel', type: 'APPLY_STYLE', prop, value: val },
-        '*'
-      )
-    }
+const CSS_VALUES: Record<string, string[]> = {
+  display:          ['block','inline','inline-block','flex','inline-flex','grid','inline-grid','none','contents','flow-root','table'],
+  position:         ['static','relative','absolute','fixed','sticky'],
+  overflow:         ['visible','hidden','scroll','auto','clip'],
+  'overflow-x':     ['visible','hidden','scroll','auto'],
+  'overflow-y':     ['visible','hidden','scroll','auto'],
+  'flex-direction': ['row','row-reverse','column','column-reverse'],
+  'flex-wrap':      ['nowrap','wrap','wrap-reverse'],
+  'justify-content':['flex-start','flex-end','center','space-between','space-around','space-evenly','start','end'],
+  'align-items':    ['flex-start','flex-end','center','baseline','stretch','start','end'],
+  'align-self':     ['auto','flex-start','flex-end','center','baseline','stretch'],
+  'align-content':  ['flex-start','flex-end','center','space-between','space-around','stretch'],
+  'flex-grow':      ['0','1','2'],
+  'flex-shrink':    ['0','1'],
+  visibility:       ['visible','hidden','collapse'],
+  cursor:           ['auto','default','pointer','crosshair','move','text','wait','help','not-allowed','grab','grabbing','zoom-in','zoom-out','none'],
+  'text-align':     ['left','right','center','justify','start','end'],
+  'text-decoration':['none','underline','overline','line-through'],
+  'text-transform': ['none','capitalize','uppercase','lowercase'],
+  'text-overflow':  ['clip','ellipsis'],
+  'white-space':    ['normal','nowrap','pre','pre-wrap','pre-line'],
+  'word-break':     ['normal','break-all','keep-all','break-word'],
+  'font-style':     ['normal','italic','oblique'],
+  'font-weight':    ['100','200','300','400','500','600','700','800','900','bold','bolder','lighter','normal'],
+  'font-variant':   ['normal','small-caps'],
+  'object-fit':     ['fill','contain','cover','none','scale-down'],
+  'box-sizing':     ['content-box','border-box'],
+  'border-style':   ['none','solid','dashed','dotted','double','groove','ridge','inset','outset'],
+  'border-collapse':['collapse','separate'],
+  'resize':         ['none','both','horizontal','vertical'],
+  'pointer-events': ['auto','none'],
+  'will-change':    ['auto','transform','opacity','scroll-position','contents'],
+  'scroll-behavior':['auto','smooth'],
+  float:            ['none','left','right'],
+  clear:            ['none','left','right','both'],
+  'background-repeat':['repeat','repeat-x','repeat-y','no-repeat','space','round'],
+  'background-attachment':['scroll','fixed','local'],
+  'background-clip':['border-box','padding-box','content-box','text'],
+  'background-origin':['border-box','padding-box','content-box'],
+  'background-size':['auto','cover','contain'],
+  'background-position':['center','top','bottom','left','right','top left','top right','bottom left','bottom right'],
+  'list-style-type':['none','disc','circle','square','decimal','lower-alpha','upper-alpha','lower-roman','upper-roman'],
+}
+
+// Returns value colour matching DevTools — same as ValueWithSwatches
+function cssValueColor(val: string, isChanged: boolean): string {
+  if (isChanged) return '#a5f3fc'
+  if (/^var\(/.test(val)) return '#c4b5fd'
+  if (COLOR_RE.test(val)) return '#93c5fd'
+  if (/^\d/.test(val) || /px|em|rem|vh|vw|%|deg|s$/.test(val)) return '#c4b5fd'
+  return '#fde68a'
+}
+
+// ─── CssLineEditor — single editable line with prop+value autocomplete ─────────
+interface CssLine { id: number; prop: string; value: string }
+
+function CssLineEditor({
+  line, autoFocusProp, onPropChange, onValueChange, onDelete, onAddAfter, applyLine,
+}: {
+  line:          CssLine
+  autoFocusProp: boolean
+  onPropChange:  (val: string) => void
+  onValueChange: (val: string) => void
+  onDelete:      () => void
+  onAddAfter:    () => void
+  applyLine:     (prop: string, value: string) => void
+}) {
+  const propRef  = useRef<HTMLInputElement>(null)
+  const valueRef = useRef<HTMLInputElement>(null)
+  const [propSugs,  setPropSugs]  = useState<string[]>([])
+  const [valueSugs, setValueSugs] = useState<string[]>([])
+  const [propIdx,   setPropIdx]   = useState(-1)
+  const [valueIdx,  setValueIdx]  = useState(-1)
+  const [propFocus, setPropFocus] = useState(false)
+  const [valFocus,  setValFocus]  = useState(false)
+
+  useEffect(() => { if (autoFocusProp) propRef.current?.focus() }, [autoFocusProp])
+
+  // ── Prop autocomplete ──────────────────────────────────────────────────────
+  function onPropInput(raw: string) {
+    onPropChange(raw)
+    const q = raw.trim().toLowerCase()
+    if (!q) { setPropSugs([]); return }
+    // Prefix matches first, then substring
+    const prefix = CSS_PROPS.filter(p => p.startsWith(q))
+    const sub    = CSS_PROPS.filter(p => !p.startsWith(q) && p.includes(q))
+    setPropSugs([...prefix, ...sub].slice(0, 10))
+    setPropIdx(-1)
   }
 
-  function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
-    const raw = e.target.value
-    setText(raw)
-    // Debounce 80ms — fast enough to feel live, avoids flooding on each char
-    if (timerRef.current) clearTimeout(timerRef.current)
-    timerRef.current = setTimeout(() => applyLive(raw), 80)
+  function selectProp(p: string) {
+    onPropChange(p)
+    setPropSugs([])
+    setPropIdx(-1)
+    setTimeout(() => valueRef.current?.focus(), 0)
+  }
+
+  function onPropKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (propSugs.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setPropIdx(i => Math.min(i + 1, propSugs.length - 1)); return }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setPropIdx(i => Math.max(i - 1, -1)); return }
+      if (e.key === 'Tab' || e.key === 'Enter') {
+        e.preventDefault()
+        selectProp(propIdx >= 0 ? propSugs[propIdx] : propSugs[0])
+        return
+      }
+      if (e.key === 'Escape') { setPropSugs([]); return }
+    }
+    if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); valueRef.current?.focus() }
+    if (e.key === 'Backspace' && !line.prop) { onDelete() }
+  }
+
+  // ── Value autocomplete ─────────────────────────────────────────────────────
+  function onValueInput(raw: string) {
+    onValueChange(raw)
+    const sugs = CSS_VALUES[line.prop] ?? []
+    const q    = raw.trim().toLowerCase()
+    setValueSugs(q ? sugs.filter(v => v.startsWith(q) || v.includes(q)).slice(0, 8) : sugs.slice(0, 8))
+    setValueIdx(-1)
+  }
+
+  function selectValue(v: string) {
+    onValueChange(v)
+    setValueSugs([])
+    setValueIdx(-1)
+    applyLine(line.prop, v)
+  }
+
+  function onValueKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (valueSugs.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setValueIdx(i => Math.min(i + 1, valueSugs.length - 1)); return }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setValueIdx(i => Math.max(i - 1, -1)); return }
+      if (e.key === 'Tab' || e.key === 'Enter') {
+        e.preventDefault()
+        selectValue(valueIdx >= 0 ? valueSugs[valueIdx] : valueSugs[0])
+        return
+      }
+      if (e.key === 'Escape') { setValueSugs([]); return }
+    }
+    if (e.key === 'Enter') { e.preventDefault(); applyLine(line.prop, line.value); onAddAfter() }
+    if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); applyLine(line.prop, line.value); onAddAfter() }
+    if (e.key === 'Tab' && e.shiftKey)  { e.preventDefault(); propRef.current?.focus() }
+    if (e.key === 'Backspace' && !line.value) { propRef.current?.focus() }
+  }
+
+  function onValueBlur() {
+    setValFocus(false)
+    setValueSugs([])
+    if (line.prop && line.value) applyLine(line.prop, line.value)
+  }
+
+  const valueColor = cssValueColor(line.value, false)
+  const showPropDrop  = propFocus && propSugs.length > 0
+  const showValDrop   = valFocus && valueSugs.length > 0
+
+  return (
+    <div className="relative flex items-center gap-1 group" style={{ minHeight: 20, padding: '0 6px' }}>
+      {/* Prop input */}
+      <div className="relative" style={{ flexShrink: 0 }}>
+        <input
+          ref={propRef}
+          value={line.prop}
+          onChange={e => onPropInput(e.target.value)}
+          onKeyDown={onPropKeyDown}
+          onFocus={() => { setPropFocus(true); onPropInput(line.prop) }}
+          onBlur={() => { setPropFocus(false); setTimeout(() => setPropSugs([]), 120) }}
+          spellCheck={false}
+          placeholder="property"
+          className="bg-transparent outline-none font-mono text-[11px] leading-5"
+          style={{
+            color: '#64748b',
+            width: Math.max(60, line.prop.length * 7 + 8),
+            caretColor: '#818cf8',
+          }}
+        />
+        {/* Prop dropdown */}
+        {showPropDrop && (
+          <div style={{
+            position: 'absolute', top: '100%', left: 0, zIndex: 100,
+            background: '#1e293b', border: '1px solid #374151',
+            borderRadius: 4, minWidth: 180, maxHeight: 160, overflowY: 'auto',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+          }}>
+            {propSugs.map((s, i) => (
+              <div key={s}
+                onMouseDown={e => { e.preventDefault(); selectProp(s) }}
+                style={{
+                  padding: '2px 8px', fontSize: 11, fontFamily: 'monospace',
+                  color: i === propIdx ? '#fff' : '#94a3b8',
+                  background: i === propIdx ? '#6366f1' : 'transparent',
+                  cursor: 'pointer', whiteSpace: 'nowrap',
+                }}
+              >
+                {s}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Colon separator */}
+      <span style={{ color: '#475569', fontSize: 11, fontFamily: 'monospace', flexShrink: 0 }}>:</span>
+
+      {/* Value input */}
+      <div className="relative flex-1 min-w-0">
+        <input
+          ref={valueRef}
+          value={line.value}
+          onChange={e => onValueInput(e.target.value)}
+          onKeyDown={onValueKeyDown}
+          onFocus={() => { setValFocus(true); onValueInput(line.value) }}
+          onBlur={onValueBlur}
+          spellCheck={false}
+          placeholder="value"
+          className="w-full bg-transparent outline-none font-mono text-[11px] leading-5"
+          style={{ color: valueColor, caretColor: '#818cf8' }}
+        />
+        {/* Color preview swatch if value is a colour */}
+        {COLOR_RE.test(line.value) && (
+          <span style={{
+            position: 'absolute', left: `${line.value.length * 7 + 2}px`, top: '50%',
+            transform: 'translateY(-50%)',
+            display: 'inline-block', width: 8, height: 8,
+            borderRadius: '50%', background: line.value,
+            border: '1px solid rgba(255,255,255,0.2)', flexShrink: 0,
+          }} />
+        )}
+        {/* Value dropdown */}
+        {showValDrop && (
+          <div style={{
+            position: 'absolute', top: '100%', left: 0, zIndex: 100,
+            background: '#1e293b', border: '1px solid #374151',
+            borderRadius: 4, minWidth: 140, maxHeight: 160, overflowY: 'auto',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+          }}>
+            {valueSugs.map((s, i) => (
+              <div key={s}
+                onMouseDown={e => { e.preventDefault(); selectValue(s) }}
+                style={{
+                  padding: '2px 8px', fontSize: 11, fontFamily: 'monospace',
+                  color: i === valueIdx ? '#fff' : cssValueColor(s, false),
+                  background: i === valueIdx ? '#6366f1' : 'transparent',
+                  cursor: 'pointer', whiteSpace: 'nowrap',
+                }}
+              >
+                {s}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Delete line button — on hover */}
+      <button
+        onMouseDown={e => { e.preventDefault(); onDelete() }}
+        className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+        style={{ color: '#475569', padding: '0 2px', lineHeight: 1 }}
+        tabIndex={-1}
+        title="Remove"
+      >
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+          <path d="M1.5 1.5L6.5 6.5M6.5 1.5L1.5 6.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+        </svg>
+      </button>
+    </div>
+  )
+}
+
+// ─── CustomCSSBlock ───────────────────────────────────────────────────────────
+// DevTools-style line editor: per-line prop/value inputs, autocomplete,
+// arrow-key navigation, Tab to advance, colour coding — applies live.
+function CustomCSSBlock({ canEdit }: { canEdit: boolean }) {
+  const [lines, setLines] = useState<CssLine[]>([{ id: 0, prop: '', value: '' }])
+  const [nextId, setNextId] = useState(1)
+  const [newLineIdx, setNewLineIdx] = useState<number | null>(0)
+
+  function applyLine(prop: string, value: string) {
+    if (!canEdit || !prop.trim() || !value.trim()) return
+    window.parent.postMessage(
+      { source: 'devlens-panel', type: 'APPLY_STYLE', prop: prop.trim(), value: value.trim() },
+      '*'
+    )
+  }
+
+  function updateProp(id: number, val: string) {
+    setLines(ls => ls.map(l => l.id === id ? { ...l, prop: val } : l))
+  }
+
+  function updateValue(id: number, val: string) {
+    setLines(ls => ls.map(l => l.id === id ? { ...l, value: val } : l))
+  }
+
+  function addAfter(id: number) {
+    const nid = nextId
+    setNextId(n => n + 1)
+    setLines(ls => {
+      const idx = ls.findIndex(l => l.id === id)
+      const next = [...ls]
+      next.splice(idx + 1, 0, { id: nid, prop: '', value: '' })
+      return next
+    })
+    setNewLineIdx(nid)
+  }
+
+  function deleteLine(id: number) {
+    setLines(ls => {
+      if (ls.length === 1) return [{ id: nextId, prop: '', value: '' }]
+      return ls.filter(l => l.id !== id)
+    })
+    if (lines.length === 1) setNextId(n => n + 1)
   }
 
   if (!canEdit) return null
 
   return (
-    <div className="rounded overflow-hidden"
+    <div className="rounded overflow-visible"
          style={{ border: '1px solid #374151', background: '#111827' }}>
-      <textarea
-        value={text}
-        onChange={handleChange}
-        spellCheck={false}
-        placeholder={'color: red;\nfont-size: 14px;'}
-        rows={3}
-        className="w-full bg-transparent outline-none text-[11px] font-mono leading-5 resize-none px-3 py-2"
-        style={{ color: '#fde68a', caretColor: '#818cf8', display: 'block' }}
-      />
+      {/* Header hint */}
+      <div style={{ borderBottom: '1px solid #1e293b', padding: '3px 6px', display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span style={{ fontSize: 9, fontFamily: 'monospace', color: '#475569' }}>
+          element.style
+        </span>
+        <span style={{ fontSize: 8, color: '#334155', marginLeft: 'auto' }}>
+          Tab · ↑↓ navigate
+        </span>
+      </div>
+
+      {/* Lines */}
+      <div style={{ padding: '4px 0' }}>
+        {lines.map((line, i) => (
+          <CssLineEditor
+            key={line.id}
+            line={line}
+            autoFocusProp={newLineIdx === line.id}
+            onPropChange={v => updateProp(line.id, v)}
+            onValueChange={v => updateValue(line.id, v)}
+            onDelete={() => deleteLine(line.id)}
+            onAddAfter={() => addAfter(line.id)}
+            applyLine={applyLine}
+          />
+        ))}
+      </div>
+
+      {/* Add line shortcut */}
+      <button
+        onMouseDown={e => { e.preventDefault(); addAfter(lines[lines.length - 1].id) }}
+        style={{
+          display: 'flex', width: '100%', alignItems: 'center', gap: 4,
+          padding: '3px 6px', borderTop: '1px solid #1e293b',
+          fontSize: 9, color: '#334155', background: 'transparent',
+          cursor: 'pointer', fontFamily: 'monospace',
+        }}
+        tabIndex={-1}
+      >
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+          <path d="M4 1.5V6.5M1.5 4H6.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+        </svg>
+        new property
+      </button>
     </div>
   )
 }
@@ -752,12 +1104,12 @@ function FontsTab({ data }: { data: InspectorElementData }) {
 }
 
 // ─── RelationsBar — replaces BreadcrumbNav ────────────────────────────────────
-// Figma asset URLs for relation icons (node 56:1374)
+// Figma asset URLs for relation icons (node 56:1301 — updated icons)
 const RELATION_ICONS: Record<string, string> = {
-  'Parent':      'https://www.figma.com/api/mcp/asset/e55f1c2f-c603-4ee6-b72f-967adfae414e',
-  'Sibling down':'https://www.figma.com/api/mcp/asset/b469ca5b-4a26-4970-9f0a-d3609c032494',
-  'Child':       'https://www.figma.com/api/mcp/asset/4698a321-e3a3-48af-ae79-749a896ace94',
-  'Sibling up':  'https://www.figma.com/api/mcp/asset/fe826247-4e17-455e-8704-e83d69dc1ed8',
+  'Parent':      'https://www.figma.com/api/mcp/asset/cd9d524e-27c3-4cc4-925f-fc42783a1705',
+  'Child':       'https://www.figma.com/api/mcp/asset/635a998e-c6b9-4146-9bc2-edafd0f09f8b',
+  'Sibling down':'https://www.figma.com/api/mcp/asset/411af076-b985-4c17-b155-40b3578daae1',
+  'Sibling up':  'https://www.figma.com/api/mcp/asset/b5933cc7-7711-4287-a6a5-3c9f617a82d0',
 }
 
 function RelationPill({ label, node, canNavigate, onClick }: {
