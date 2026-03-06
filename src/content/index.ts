@@ -13,6 +13,9 @@ window.__devlens_loaded = true
 let isDragging = false
 let dragOffsetX = 0
 let dragOffsetY = 0
+let dragStartPageX = 0
+let dragStartPageY = 0
+let dragHasMoved = false
 let isFloating = false
 let panelReady = false
 let pendingTool: string | null = null
@@ -240,16 +243,31 @@ function setupMessageBridge() {
         break
       }
 
+      case 'REMOVE_STYLE': {
+        // Completely remove a custom property added via the element style editor.
+        // Clears both the inline style and any devlens-disable-sheet rule for it.
+        const el = window.__devlens_locked_el as HTMLElement | null
+        if (!el || !event.data.prop) break
+        const prop: string = event.data.prop
+        el.style.removeProperty(prop)
+        const sheet = document.getElementById('devlens-disable-sheet') as HTMLStyleElement | null
+        if (sheet) {
+          const escaped = prop.replace(/-/g, '\\-')
+          sheet.textContent = (sheet.textContent ?? '')
+            .replace(new RegExp(`/\\*dl:${escaped}\\*/[^\\n]*\\n?`, 'g'), '')
+        }
+        break
+      }
+
       case 'APPLY_STYLE': {
         const el = window.__devlens_locked_el as HTMLElement | null
         if (!el || !event.data.prop) break
         const prop: string  = event.data.prop
         const value: string = event.data.value ?? ''
-        // `restore` flag = true when re-enabling a toggled-off property.
-        // In that case we remove the suppression rule and remove any inline
-        // override so the cascade naturally restores the original sheet value.
-        // We do NOT call setProperty — that would pollute element.style.
+        // `restore`  = re-enable a stylesheet property (cascade brings it back, no inline needed)
+        // `reapply`  = re-enable a custom/inline property (must set inline since no cascade fallback)
         const restore: boolean = !!event.data.restore
+        const reapply: boolean = !!event.data.reapply
 
         const getSheet = (): HTMLStyleElement => {
           let sheet = document.getElementById('devlens-disable-sheet') as HTMLStyleElement | null
@@ -264,35 +282,34 @@ function setupMessageBridge() {
         const removeRule = (p: string) => {
           const sheet = document.getElementById('devlens-disable-sheet') as HTMLStyleElement | null
           if (!sheet) return
-          // Escape hyphens for regex and remove the marker+rule line
           const escaped = p.replace(/-/g, '\\-')
           sheet.textContent = (sheet.textContent ?? '')
             .replace(new RegExp(`/\\*dl:${escaped}\\*/[^\\n]*\\n?`, 'g'), '')
         }
 
         if (value === '') {
-          // ── DISABLE ──────────────────────────────────────────────────────────
+          // ── DISABLE ───────────────────────────────────────────────────────────
           // Inject `[data-devlens-target] { prop: unset !important }` to beat
           // the page cascade. Removing inline style alone is not enough.
           el.setAttribute('data-devlens-target', '')
           const sheet = getSheet()
-          // Remove stale rule for this prop first, then append fresh one
           removeRule(prop)
           const rule = `/*dl:${prop}*/[data-devlens-target]{${prop}:unset!important}\n`
           sheet.textContent = (sheet.textContent ?? '') + rule
-          // Remove inline override so the sheet rule wins cleanly
           el.style.removeProperty(prop)
         } else if (restore) {
-          // ── RE-ENABLE (restore to original cascade value) ─────────────────
-          // Just remove the suppression rule — the browser cascade takes over.
-          // Do NOT touch el.style so element.style stays clean.
+          // ── RE-ENABLE stylesheet prop (cascade restores it) ───────────────────
+          // Remove the suppression rule — browser cascade takes over.
+          // Don't touch el.style so element.style stays clean.
           removeRule(prop)
-          // Also clean up any stale inline value for this prop
           el.style.removeProperty(prop)
+        } else if (reapply) {
+          // ── RE-ENABLE custom/inline prop (no cascade fallback) ────────────────
+          // Remove the suppression rule AND re-apply the value inline.
+          removeRule(prop)
+          el.style.setProperty(prop, value)
         } else {
-          // ── EDIT (user changed the value) ─────────────────────────────────
-          // Remove any suppression rule (shouldn't exist, but be safe), then
-          // apply the new value inline so it overrides the sheet.
+          // ── EDIT (user changed the value) ─────────────────────────────────────
           removeRule(prop)
           el.style.setProperty(prop, value)
         }
@@ -313,28 +330,28 @@ function setupMessageBridge() {
       }
 
       case 'DRAG_START': {
+        if (isDragging) break  // ignore duplicate starts
         isDragging = true
-        // Disable inspector highlighting while dragging
         setInspectorEnabled(false)
         const container = getContainer()
         if (!container) break
         const rect = container.getBoundingClientRect()
-        // offsetX/Y = mouse position inside the iframe (iframe-local coords).
-        // Since the iframe fills the container 1:1, these are exactly how far
-        // the cursor is from the container's top-left corner.
-        // Using them as dragOffset directly keeps whatever spot the user grabbed
-        // pinned under the cursor throughout the drag — both on first snap and
-        // while already floating.
+
+        // event.data.offsetX/Y = cursor position inside the iframe viewport.
+        // Since the iframe fills the container 1:1, this equals the cursor's
+        // offset from the container's top-left corner — exactly what we need
+        // for the mousemove handler (newLeft = pageX - offsetX).
         dragOffsetX = event.data.offsetX ?? 0
         dragOffsetY = event.data.offsetY ?? 0
 
+        // Record page-coords at drag start so setupDrag can detect click vs drag
+        dragStartPageX = rect.left + dragOffsetX
+        dragStartPageY = rect.top  + dragOffsetY
+        dragHasMoved   = false
+
         if (!isFloating) {
-          // Place the floating container so the grab point stays under the cursor:
-          //   containerLeft = mousePageX - dragOffsetX
-          const mousePageX = rect.left + dragOffsetX
-          const mousePageY = rect.top  + dragOffsetY
-          const floatLeft = Math.max(0, Math.min(window.innerWidth  - 360, mousePageX - dragOffsetX))
-          const floatTop  = Math.max(0, Math.min(window.innerHeight - 600, mousePageY - dragOffsetY))
+          const floatLeft = Math.max(0, Math.min(window.innerWidth  - 360, rect.left))
+          const floatTop  = Math.max(0, Math.min(window.innerHeight - 600, rect.top))
           Object.assign(container.style, {
             right:  'auto',
             left:   `${floatLeft}px`,
@@ -348,6 +365,7 @@ function setupMessageBridge() {
           isFloating = true
           postToPanel({ type: 'PANEL_FLOATING', floating: true })
         }
+
         if (iframe) iframe.style.pointerEvents = 'none'
         document.body.style.userSelect = 'none'
         break
@@ -362,18 +380,36 @@ function setupMessageBridge() {
 function setupDrag() {
   document.addEventListener('mousemove', (e) => {
     if (!isDragging) return
+    // Track whether the cursor has actually moved (click vs drag on magnet)
+    if (!dragHasMoved) {
+      const dx = Math.abs(e.clientX - dragStartPageX)
+      const dy = Math.abs(e.clientY - dragStartPageY)
+      if (dx > 4 || dy > 4) dragHasMoved = true
+    }
+    if (!dragHasMoved) return  // don't move panel until real drag starts
     const container = getContainer()
     if (!container) return
     const newX = Math.max(0, Math.min(window.innerWidth - container.offsetWidth, e.clientX - dragOffsetX))
     const newY = Math.max(0, Math.min(window.innerHeight - container.offsetHeight, e.clientY - dragOffsetY))
     container.style.left = `${newX}px`
-    container.style.top = `${newY}px`
+    container.style.top  = `${newY}px`
   })
-  document.addEventListener('mouseup', () => { if (isDragging) stopDrag() })
+
+  document.addEventListener('mouseup', () => {
+    if (!isDragging) return
+    if (!dragHasMoved && isFloating) {
+      // Mouse released without moving — treat as click on magnet → snap back
+      stopDrag()
+      snapBack()
+    } else {
+      stopDrag()
+    }
+  })
 }
 
 function stopDrag() {
-  isDragging = false
+  isDragging   = false
+  dragHasMoved = false
   setInspectorEnabled(true)
   const iframe = getIframe()
   if (iframe) iframe.style.pointerEvents = 'all'

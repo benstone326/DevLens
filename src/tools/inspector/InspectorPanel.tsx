@@ -913,15 +913,17 @@ function CustomCSSBlock({ canEdit, data }: { canEdit: boolean; data: InspectorEl
       if (l.id !== id) return l
       const nowDisabled = !l.disabled
       if (nowDisabled) {
-        // Disable — inject unset !important via content script
+        // Disable — inject unset !important to suppress the inline style
         window.parent.postMessage(
           { source: 'devlens-panel', type: 'APPLY_STYLE', prop: l.prop, value: '' },
           '*'
         )
       } else {
-        // Re-enable — remove suppression rule, restore cascade naturally
+        // Re-enable — for custom CSS props we must re-apply the value inline
+        // (unlike stylesheet props where the cascade restores them automatically).
+        // We remove the unset rule AND set the inline value back.
         window.parent.postMessage(
-          { source: 'devlens-panel', type: 'APPLY_STYLE', prop: l.prop, value: l.value, restore: true },
+          { source: 'devlens-panel', type: 'APPLY_STYLE', prop: l.prop, value: l.value, reapply: true },
           '*'
         )
       }
@@ -950,6 +952,14 @@ function CustomCSSBlock({ canEdit, data }: { canEdit: boolean; data: InspectorEl
   }
 
   function deleteLine(id: number) {
+    // Find the line first so we can remove it from the DOM before updating state
+    const line = lines.find(l => l.id === id)
+    if (line?.prop) {
+      window.parent.postMessage(
+        { source: 'devlens-panel', type: 'REMOVE_STYLE', prop: line.prop },
+        '*'
+      )
+    }
     setLines(ls => {
       if (ls.length === 1) {
         const nid = nextId

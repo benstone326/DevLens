@@ -191,55 +191,36 @@ function DragOrMagnetButton({
     </svg>
   )
 
-  // Horseshoe magnet — exact Figma shape:
-  // Two vertical prongs at bottom, arch connecting them at top
-  // South poles (prong tips) face downward with red/blue pole ends
+  // Horseshoe magnet — matches Figma 19:740: U-shape with two prong ends, single color
   const MagnetIcon = (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      {/* Left prong */}
-      <rect x="2.5" y="8" width="3" height="4.5" rx="0.5" fill="currentColor" opacity="0.9"/>
-      {/* Right prong */}
-      <rect x="10.5" y="8" width="3" height="4.5" rx="0.5" fill="currentColor" opacity="0.9"/>
-      {/* Arch connecting the two prongs */}
-      <path d="M4 8V5a4 4 0 018 0v3" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square" fill="none"/>
-      {/* Pole tips */}
-      <rect x="2.5" y="11.5" width="3" height="1.5" rx="0.4" fill="#ef4444"/>
-      <rect x="10.5" y="11.5" width="3" height="1.5" rx="0.4" fill="#3b82f6"/>
+      {/* Single path: two legs + arch, drawn as a U shape */}
+      <path
+        d="M3.5 12.5V6.5a4.5 4.5 0 019 0v6"
+        stroke="currentColor"
+        strokeWidth="2.8"
+        strokeLinecap="square"
+        fill="none"
+      />
+      {/* Left prong cap */}
+      <line x1="2.1" y1="12.5" x2="4.9" y2="12.5" stroke="currentColor" strokeWidth="2.8" strokeLinecap="square"/>
+      {/* Right prong cap */}
+      <line x1="11.1" y1="12.5" x2="13.9" y2="12.5" stroke="currentColor" strokeWidth="2.8" strokeLinecap="square"/>
     </svg>
   )
 
   if (isFloating) {
-    // When floating: mousedown starts a drag (if mouse moves), mouseup without move = snap back
-    const handleMouseDown = (e: React.MouseEvent) => {
-      const startX = e.clientX
-      const startY = e.clientY
-      let dragging = false
-
-      const handleMouseMove = (me: MouseEvent) => {
-        const dx = Math.abs(me.clientX - startX)
-        const dy = Math.abs(me.clientY - startY)
-        if (!dragging && (dx > 4 || dy > 4)) {
-          dragging = true
-          onMouseDown(e)  // start the actual drag
-        }
-      }
-
-      const handleMouseUp = () => {
-        window.removeEventListener('mousemove', handleMouseMove)
-        window.removeEventListener('mouseup', handleMouseUp)
-        if (!dragging) {
-          onSnapBack()  // it was a click — snap back
-        }
-      }
-
-      window.addEventListener('mousemove', handleMouseMove)
-      window.addEventListener('mouseup', handleMouseUp)
-    }
-
+    // Magnet button when floating.
+    // We can't reliably detect drag vs click inside the iframe because once
+    // pointer-events are disabled on the iframe during drag, window-level
+    // mousemove/mouseup listeners in the iframe context stop firing.
+    // Solution: always send DRAG_START on mousedown so the content script
+    // (which lives on the PAGE) owns the drag. If the mouse never moves more
+    // than 4px before mouseup, the content script sends SNAP_BACK instead.
     return (
       <button
-        onMouseDown={handleMouseDown}
-        title="Click to snap · Hold to drag"
+        onMouseDown={e => { e.preventDefault(); onMouseDown(e) }}
+        title="Drag to move · Release without moving to snap back"
         {...hoverProps}
         style={{
           width:          36,
@@ -250,7 +231,7 @@ function DragOrMagnetButton({
           background:     hovered ? 'rgba(245,158,11,0.1)' : 'transparent',
           color:          hovered ? '#f59e0b' : '#9ca3af',
           transition:     'background 0.12s, color 0.12s',
-          cursor:         'pointer',
+          cursor:         'grab',
           display:        'flex',
           alignItems:     'center',
           justifyContent: 'center',
