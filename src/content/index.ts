@@ -243,36 +243,57 @@ function setupMessageBridge() {
       case 'APPLY_STYLE': {
         const el = window.__devlens_locked_el as HTMLElement | null
         if (!el || !event.data.prop) break
-        const prop: string = event.data.prop
+        const prop: string  = event.data.prop
         const value: string = event.data.value ?? ''
+        // `restore` flag = true when re-enabling a toggled-off property.
+        // In that case we remove the suppression rule and remove any inline
+        // override so the cascade naturally restores the original sheet value.
+        // We do NOT call setProperty — that would pollute element.style.
+        const restore: boolean = !!event.data.restore
 
-        if (value === '') {
-          // DISABLE — inject a stylesheet rule that beats the cascade.
-          // Removing inline style only reverts to the sheet value; we need
-          // `unset !important` in a DevLens-owned stylesheet to truly suppress.
-          el.removeAttribute('data-devlens-target')
-          el.setAttribute('data-devlens-target', '')
+        const getSheet = (): HTMLStyleElement => {
           let sheet = document.getElementById('devlens-disable-sheet') as HTMLStyleElement | null
           if (!sheet) {
             sheet = document.createElement('style')
             sheet.id = 'devlens-disable-sheet'
             document.head.appendChild(sheet)
           }
-          // Replace or add rule for this prop
-          const marker = `/*dl:${prop}*/`
-          const rule = `${marker}[data-devlens-target]{${prop}:unset!important}`
+          return sheet
+        }
+
+        const removeRule = (p: string) => {
+          const sheet = document.getElementById('devlens-disable-sheet') as HTMLStyleElement | null
+          if (!sheet) return
+          // Escape hyphens for regex and remove the marker+rule line
+          const escaped = p.replace(/-/g, '\\-')
           sheet.textContent = (sheet.textContent ?? '')
-            .replace(new RegExp(`/\\*dl:${prop.replace(/-/g,'\\-')}\\*/[^/]*?(?=/\\*|$)`, 'g'), '')
-            .trimEnd() + '\n' + rule
-          // Also remove any inline override so the sheet rule wins cleanly
+            .replace(new RegExp(`/\\*dl:${escaped}\\*/[^\\n]*\\n?`, 'g'), '')
+        }
+
+        if (value === '') {
+          // ── DISABLE ──────────────────────────────────────────────────────────
+          // Inject `[data-devlens-target] { prop: unset !important }` to beat
+          // the page cascade. Removing inline style alone is not enough.
+          el.setAttribute('data-devlens-target', '')
+          const sheet = getSheet()
+          // Remove stale rule for this prop first, then append fresh one
+          removeRule(prop)
+          const rule = `/*dl:${prop}*/[data-devlens-target]{${prop}:unset!important}\n`
+          sheet.textContent = (sheet.textContent ?? '') + rule
+          // Remove inline override so the sheet rule wins cleanly
+          el.style.removeProperty(prop)
+        } else if (restore) {
+          // ── RE-ENABLE (restore to original cascade value) ─────────────────
+          // Just remove the suppression rule — the browser cascade takes over.
+          // Do NOT touch el.style so element.style stays clean.
+          removeRule(prop)
+          // Also clean up any stale inline value for this prop
           el.style.removeProperty(prop)
         } else {
-          // ENABLE / SET — remove the suppression rule and apply inline
-          const sheet = document.getElementById('devlens-disable-sheet') as HTMLStyleElement | null
-          if (sheet) {
-            sheet.textContent = (sheet.textContent ?? '')
-              .replace(new RegExp(`/\\*dl:${prop.replace(/-/g,'\\-')}\\*/[^\\n]*\\n?`, 'g'), '')
-          }
+          // ── EDIT (user changed the value) ─────────────────────────────────
+          // Remove any suppression rule (shouldn't exist, but be safe), then
+          // apply the new value inline so it overrides the sheet.
+          removeRule(prop)
           el.style.setProperty(prop, value)
         }
         break

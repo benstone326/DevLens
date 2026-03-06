@@ -439,7 +439,14 @@ function StylesBlock({ data, canEdit }: { data: InspectorElementData; canEdit: b
     if (!canEdit) return
     const nowDisabled = !disabled[prop]
     setDisabled(d => ({ ...d, [prop]: nowDisabled }))
-    postToParent({ type: 'APPLY_STYLE', prop, value: nowDisabled ? '' : values[prop] })
+    if (nowDisabled) {
+      // Disabling — send empty value so content script injects unset !important
+      postToParent({ type: 'APPLY_STYLE', prop, value: '' })
+    } else {
+      // Re-enabling — send restore flag so content script only removes the
+      // suppression rule without adding the value to element.style inline
+      postToParent({ type: 'APPLY_STYLE', prop, value: values[prop], restore: true })
+    }
   }
 
   const allEntries = Object.entries(values)
