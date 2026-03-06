@@ -25,6 +25,7 @@ export interface InspectorElementData {
   hasTailwind: boolean   // whether the page uses Tailwind at all
   siblingPrev: BreadcrumbNode | null   // previous sibling element
   siblingNext: BreadcrumbNode | null   // next sibling element
+  ariaLabel:   string | null           // element's aria-label attribute (null = not set)
 }
 
 // Properties to always exclude even if found in stylesheets (browser internals / noise)
@@ -241,6 +242,7 @@ export function extractElementData(el: Element): InspectorElementData {
       : (el as HTMLElement).outerHTML,
     hasTailwind: hasTailwindCached(),
     twClasses: extractTwClasses(el),
+    ariaLabel: el.getAttribute('aria-label'),
     ...(() => { const s = extractSiblings(el); return { siblingPrev: s.prev, siblingNext: s.next } })(),
   }
 }
@@ -421,11 +423,16 @@ function onKeyDown(e: KeyboardEvent) {
 }
 
 function onScroll() {
-  // Re-position locked element overlay so it tracks the element as page scrolls
-  if (isLocked && lastTarget) highlightElement(lastTarget)
-  // Re-position hover overlay too — getBoundingClientRect() is viewport-relative
-  // so we must recalculate after every scroll event
-  if (isLocked && lastHoverTarget) highlightHover(lastHoverTarget)
+  // Re-position overlays after scroll — all overlays are position:fixed and use
+  // getBoundingClientRect() which is viewport-relative, so must be recalculated.
+  if (isLocked) {
+    // Locked: refresh the amber locked overlay + the dashed hover preview
+    if (lastTarget)      highlightElement(lastTarget)
+    if (lastHoverTarget) highlightHover(lastHoverTarget)
+  } else {
+    // Not locked: refresh the indigo hover overlay following the cursor target
+    if (lastTarget) highlightElement(lastTarget)
+  }
 }
 
 function highlightElement(el: Element) {
@@ -503,7 +510,6 @@ export function startInspector(onData: (data: InspectorElementData) => void) {
     border:2px solid #6366f1;background:rgba(99,102,241,0.08);
     border-radius:3px;display:none;
     box-shadow:0 0 0 1px rgba(99,102,241,0.2);
-    transition:top .05s,left .05s,width .05s,height .05s;
   `
 
   hoverOverlay = document.createElement('div')
@@ -511,7 +517,6 @@ export function startInspector(onData: (data: InspectorElementData) => void) {
     position:fixed;pointer-events:none;z-index:2147483645;
     border:1.5px dashed #6366f1;background:rgba(99,102,241,0.04);
     border-radius:3px;display:none;
-    transition:top .05s,left .05s,width .05s,height .05s;
   `
 
   hoverTooltip = document.createElement('div')
@@ -543,7 +548,9 @@ export function startInspector(onData: (data: InspectorElementData) => void) {
   document.addEventListener('mousemove', onMouseMove, true)
   document.addEventListener('click', onClick, true)
   document.addEventListener('keydown', onKeyDown, true)
-  window.addEventListener('scroll', onScroll, true)
+  // Capture scroll on both window AND document to handle sub-element scrollers
+  window.addEventListener('scroll', onScroll, { capture: true, passive: true })
+  document.addEventListener('scroll', onScroll, { capture: true, passive: true })
 }
 
 export function stopInspector() {
@@ -562,4 +569,5 @@ export function stopInspector() {
   document.removeEventListener('click', onClick, true)
   document.removeEventListener('keydown', onKeyDown, true)
   window.removeEventListener('scroll', onScroll, true)
+  document.removeEventListener('scroll', onScroll, true)
 }

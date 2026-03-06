@@ -369,7 +369,7 @@ function A11yBlock({ data }: { data: InspectorElementData }) {
   const contrast   = useMemo(() => computeContrast(data.fonts.color, data.computedStyles['background-color'] ?? '#fff'), [data])
   const passAA     = contrast >= 4.5
   const passAAA    = contrast >= 7
-  const hasAria    = 'aria-label' in data.computedStyles
+  const ariaLabel  = data.ariaLabel   // null = not set, string = value
   const role       = inferRole(data.tagName)
 
   return (
@@ -396,8 +396,8 @@ function A11yBlock({ data }: { data: InspectorElementData }) {
         {/* aria-label */}
         <div className="flex items-center gap-2 px-2" style={{ borderBottom: '1px solid #ffffff06', minHeight: 20 }}>
           <span className="text-[11px] font-mono shrink-0" style={{ color: '#64748b', width: 80 }}>aria-label</span>
-          {hasAria
-            ? <span className="text-[11px] font-mono" style={{ color: '#cbd5e1' }}>{data.computedStyles['aria-label']}</span>
+          {ariaLabel !== null
+            ? <span className="text-[11px] font-mono truncate" style={{ color: '#cbd5e1' }}>{ariaLabel || '""'}</span>
             : <Badge pass={false} label="Missing" variant="amber" />
           }
         </div>
@@ -745,6 +745,14 @@ function FontsTab({ data }: { data: InspectorElementData }) {
 }
 
 // ─── RelationsBar — replaces BreadcrumbNav ────────────────────────────────────
+// Figma asset URLs for relation icons (node 56:1374)
+const RELATION_ICONS: Record<string, string> = {
+  'Parent':      'https://www.figma.com/api/mcp/asset/e55f1c2f-c603-4ee6-b72f-967adfae414e',
+  'Sibling down':'https://www.figma.com/api/mcp/asset/b469ca5b-4a26-4970-9f0a-d3609c032494',
+  'Child':       'https://www.figma.com/api/mcp/asset/4698a321-e3a3-48af-ae79-749a896ace94',
+  'Sibling up':  'https://www.figma.com/api/mcp/asset/fe826247-4e17-455e-8704-e83d69dc1ed8',
+}
+
 function RelationPill({ label, node, canNavigate, onClick }: {
   label:       string
   node:        BreadcrumbNode | null
@@ -753,8 +761,6 @@ function RelationPill({ label, node, canNavigate, onClick }: {
 }) {
   const [h, hp] = useHover()
   const disabled = !node || !canNavigate
-
-  const icons: Record<string, string> = { 'Parent': '↑', 'Child': '↓', 'Sibling ↑': '←', 'Sibling ↓': '→' }
 
   function pillLabel(n: BreadcrumbNode): string {
     if (n.id)             return `${n.tag}#${n.id}`
@@ -776,8 +782,14 @@ function RelationPill({ label, node, canNavigate, onClick }: {
       }}
       {...hp}
     >
-      <span style={{ color: disabled ? '#374151' : '#6b7280', fontSize: 9, flexShrink: 0, lineHeight: 1 }}>{icons[label]}</span>
-      <span className="text-[9px] font-mono truncate" style={{ color: disabled ? '#374151' : '#6b7280' }}>
+      {/* 8×8 Figma icon */}
+      <img
+        src={RELATION_ICONS[label]}
+        width={8} height={8}
+        style={{ flexShrink: 0, opacity: disabled ? 0.3 : 1 }}
+        alt={label}
+      />
+      <span className="text-[9px] font-mono truncate" style={{ color: disabled ? '#9ca3af' : '#6b7280' }}>
         {disabled ? '—' : node ? pillLabel(node) : label}
       </span>
     </button>
@@ -804,21 +816,23 @@ function RelationsBar({ data, canEdit }: {
       borderBottom: '1px solid #e5e7eb',
       padding:      12,
     }}>
-      {/* Relations 2×2 grid — gap-x 8px, gap-y 4px per Figma */}
+      {/* Relations 2×2 grid — gap-x 8px, gap-y 4px per Figma
+          TL: Parent | TR: Sibling down
+          BL: Child  | BR: Sibling up                            */}
       <div style={{
         display:             'grid',
         gridTemplateColumns: '1fr 1fr',
         columnGap:           8,
         rowGap:              4,
       }}>
-        <RelationPill label="Parent"    node={parent}      canNavigate={canEdit}
+        <RelationPill label="Parent"       node={parent}      canNavigate={canEdit}
           onClick={() => postToParent({ type: 'NAVIGATE_TO', direction: 'ancestor', steps: 1 })} />
-        <RelationPill label="Child"     node={child}       canNavigate={canEdit}
-          onClick={() => postToParent({ type: 'NAVIGATE_TO', direction: 'child', childIndex: 0 })} />
-        <RelationPill label="Sibling ↑" node={siblingPrev} canNavigate={canEdit}
-          onClick={() => postToParent({ type: 'NAVIGATE_TO', direction: 'sibling', delta: -1 })} />
-        <RelationPill label="Sibling ↓" node={siblingNext} canNavigate={canEdit}
+        <RelationPill label="Sibling down" node={siblingNext} canNavigate={canEdit}
           onClick={() => postToParent({ type: 'NAVIGATE_TO', direction: 'sibling', delta: 1 })} />
+        <RelationPill label="Child"        node={child}       canNavigate={canEdit}
+          onClick={() => postToParent({ type: 'NAVIGATE_TO', direction: 'child', childIndex: 0 })} />
+        <RelationPill label="Sibling up"   node={siblingPrev} canNavigate={canEdit}
+          onClick={() => postToParent({ type: 'NAVIGATE_TO', direction: 'sibling', delta: -1 })} />
       </div>
     </div>
   )

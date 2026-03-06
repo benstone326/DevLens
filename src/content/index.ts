@@ -190,6 +190,8 @@ function setupMessageBridge() {
         stopInspector()
         window.__devlens_locked_el = null
         window.__devlens_original_styles = null
+        // Clear any DevLens CSS suppressions
+        ;(document.getElementById('devlens-disable-sheet') as HTMLStyleElement | null)?.remove()
         postToPanel({ type: 'INSPECTOR_UNLOCKED' })
         break
 
@@ -205,6 +207,10 @@ function setupMessageBridge() {
       }
 
       case 'UNLOCK_ELEMENT': {
+        // Remove all CSS suppressions before unlocking
+        ;(document.getElementById('devlens-disable-sheet') as HTMLStyleElement | null)?.remove()
+        const prevEl = window.__devlens_locked_el as HTMLElement | null
+        if (prevEl) prevEl.removeAttribute('data-devlens-target')
         window.__devlens_locked_el = null
         window.__devlens_original_styles = null
         postToPanel({ type: 'INSPECTOR_UNLOCKED' })
@@ -236,15 +242,38 @@ function setupMessageBridge() {
 
       case 'APPLY_STYLE': {
         const el = window.__devlens_locked_el as HTMLElement | null
-        if (el && event.data.prop) {
-          // Empty string = disable (checkbox unchecked) → removeProperty so the
-          // browser properly falls back to inherited/stylesheet values.
-          // Non-empty = set / update the property inline.
-          if (event.data.value === '' || event.data.value == null) {
-            el.style.removeProperty(event.data.prop)
-          } else {
-            el.style.setProperty(event.data.prop, event.data.value)
+        if (!el || !event.data.prop) break
+        const prop: string = event.data.prop
+        const value: string = event.data.value ?? ''
+
+        if (value === '') {
+          // DISABLE — inject a stylesheet rule that beats the cascade.
+          // Removing inline style only reverts to the sheet value; we need
+          // `unset !important` in a DevLens-owned stylesheet to truly suppress.
+          el.removeAttribute('data-devlens-target')
+          el.setAttribute('data-devlens-target', '')
+          let sheet = document.getElementById('devlens-disable-sheet') as HTMLStyleElement | null
+          if (!sheet) {
+            sheet = document.createElement('style')
+            sheet.id = 'devlens-disable-sheet'
+            document.head.appendChild(sheet)
           }
+          // Replace or add rule for this prop
+          const marker = `/*dl:${prop}*/`
+          const rule = `${marker}[data-devlens-target]{${prop}:unset!important}`
+          sheet.textContent = (sheet.textContent ?? '')
+            .replace(new RegExp(`/\\*dl:${prop.replace(/-/g,'\\-')}\\*/[^/]*?(?=/\\*|$)`, 'g'), '')
+            .trimEnd() + '\n' + rule
+          // Also remove any inline override so the sheet rule wins cleanly
+          el.style.removeProperty(prop)
+        } else {
+          // ENABLE / SET — remove the suppression rule and apply inline
+          const sheet = document.getElementById('devlens-disable-sheet') as HTMLStyleElement | null
+          if (sheet) {
+            sheet.textContent = (sheet.textContent ?? '')
+              .replace(new RegExp(`/\\*dl:${prop.replace(/-/g,'\\-')}\\*/[^\\n]*\\n?`, 'g'), '')
+          }
+          el.style.setProperty(prop, value)
         }
         break
       }
@@ -252,6 +281,10 @@ function setupMessageBridge() {
       case 'RESET_STYLES': {
         const el = window.__devlens_locked_el as HTMLElement | null
         if (el) {
+          // Remove all DevLens stylesheet suppressions
+          const sheet = document.getElementById('devlens-disable-sheet') as HTMLStyleElement | null
+          if (sheet) sheet.textContent = ''
+          el.removeAttribute('data-devlens-target')
           el.setAttribute('style', window.__devlens_original_styles ?? '')
           window.__devlens_original_styles = null
         }
