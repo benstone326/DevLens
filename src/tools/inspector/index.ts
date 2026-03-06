@@ -107,6 +107,23 @@ function applyDeclaration(style: CSSStyleDeclaration, result: Record<string, str
     if (prop.startsWith('border-') && /^var\(--tw-/.test(val)) continue
     result[prop] = val
   }
+
+  // Prune border-*-color entries where the corresponding border-width is 0
+  // (browser injects a default color even on borderless elements — pure noise)
+  const computed2 = window.getComputedStyle(el)
+  const BORDER_COLOR_SIDES: Array<[string, string]> = [
+    ['border-top-color',    'border-top-width'],
+    ['border-right-color',  'border-right-width'],
+    ['border-bottom-color', 'border-bottom-width'],
+    ['border-left-color',   'border-left-width'],
+    ['border-color',        'border-top-width'],
+  ]
+  for (const [colorProp, widthProp] of BORDER_COLOR_SIDES) {
+    if (colorProp in result) {
+      const w = parseFloat(computed2.getPropertyValue(widthProp))
+      if (!w || w === 0) delete result[colorProp]
+    }
+  }
 }
 
 

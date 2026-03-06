@@ -409,12 +409,37 @@ function A11yBlock({ data }: { data: InspectorElementData }) {
 // ─── StylesBlock ──────────────────────────────────────────────────────────────
 function StylesBlock({ data, canEdit }: { data: InspectorElementData; canEdit: boolean }) {
   const { computedStyles: styles, cssVars, hasTailwind, twClasses } = data
-  const [values,   setValues]   = useState<Record<string, string>>(() => ({ ...styles }))
+
+  // Persists original values for disabled props across element re-visits
+  const disabledOriginsRef = useRef<Record<string, string>>({})
+
+  function initFromStyles(s: Record<string, string>) {
+    const initValues: Record<string, string>  = {}
+    const initDisabled: Record<string, boolean> = {}
+    for (const [prop, val] of Object.entries(s)) {
+      if (val === 'unset') {
+        initDisabled[prop] = true
+        initValues[prop] = disabledOriginsRef.current[prop] ?? val
+      } else {
+        initValues[prop] = val
+      }
+    }
+    return { initValues, initDisabled }
+  }
+
+  const { initValues, initDisabled } = initFromStyles(styles)
+  const [values,   setValues]   = useState<Record<string, string>>(() => initValues)
   const [changed,  setChanged]  = useState<Record<string, boolean>>({})
-  const [disabled, setDisabled] = useState<Record<string, boolean>>({})
+  const [disabled, setDisabled] = useState<Record<string, boolean>>(() => initDisabled)
   const [query,    setQuery]    = useState('')
 
-  useEffect(() => { setValues({ ...styles }); setChanged({}); setDisabled({}); setQuery('') }, [styles])
+  useEffect(() => {
+    const { initValues, initDisabled } = initFromStyles(styles)
+    setValues(initValues)
+    setChanged({})
+    setDisabled(initDisabled)
+    setQuery('')
+  }, [styles])
 
   function handleChange(prop: string, val: string) {
     if (!canEdit) return
@@ -435,9 +460,12 @@ function StylesBlock({ data, canEdit }: { data: InspectorElementData; canEdit: b
     const nowDisabled = !disabled[prop]
     setDisabled(d => ({ ...d, [prop]: nowDisabled }))
     if (nowDisabled) {
+      // Store original so we can restore strikethrough display on re-visit
+      disabledOriginsRef.current[prop] = values[prop]
       // Disabling — send empty value so content script injects unset !important
       postToParent({ type: 'APPLY_STYLE', prop, value: '' })
     } else {
+      delete disabledOriginsRef.current[prop]
       // Re-enabling — send restore flag so content script only removes the
       // suppression rule without adding the value to element.style inline
       postToParent({ type: 'APPLY_STYLE', prop, value: values[prop], restore: true })

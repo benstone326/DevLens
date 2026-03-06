@@ -252,9 +252,9 @@ function setupMessageBridge() {
         el.style.removeProperty(prop)
         const sheet = document.getElementById('devlens-disable-sheet') as HTMLStyleElement | null
         if (sheet) {
-          const escaped = prop.replace(/-/g, '\\-')
+          const escaped = prop.replace(/[-]/g, '\\$&')
           sheet.textContent = (sheet.textContent ?? '')
-            .replace(new RegExp(`/\\*dl:${escaped}\\*/[^\\n]*\\n?`, 'g'), '')
+            .replace(new RegExp(`\\/\\*dl:${escaped}\\*\\/[^\\n]*\\n?`, 'g'), '')
         }
         break
       }
@@ -282,9 +282,9 @@ function setupMessageBridge() {
         const removeRule = (p: string) => {
           const sheet = document.getElementById('devlens-disable-sheet') as HTMLStyleElement | null
           if (!sheet) return
-          const escaped = p.replace(/-/g, '\\-')
+          const escaped = p.replace(/[-]/g, '\\$&')
           sheet.textContent = (sheet.textContent ?? '')
-            .replace(new RegExp(`/\\*dl:${escaped}\\*/[^\\n]*\\n?`, 'g'), '')
+            .replace(new RegExp(`\\/\\*dl:${escaped}\\*\\/[^\\n]*\\n?`, 'g'), '')
         }
 
         if (value === '') {
