@@ -26,6 +26,7 @@ export interface InspectorElementData {
   siblingPrev: BreadcrumbNode | null   // previous sibling element
   siblingNext: BreadcrumbNode | null   // next sibling element
   ariaLabel:   string | null           // element's aria-label attribute (null = not set)
+  inlineStyle: string                  // raw style="" attribute value (empty string if none)
 }
 
 // Properties to always exclude even if found in stylesheets (browser internals / noise)
@@ -243,6 +244,7 @@ export function extractElementData(el: Element): InspectorElementData {
     hasTailwind: hasTailwindCached(),
     twClasses: extractTwClasses(el),
     ariaLabel: el.getAttribute('aria-label'),
+    inlineStyle: (el as HTMLElement).getAttribute('style') ?? '',
     ...(() => { const s = extractSiblings(el); return { siblingPrev: s.prev, siblingNext: s.next } })(),
   }
 }

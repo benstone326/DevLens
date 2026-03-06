@@ -494,8 +494,8 @@ function StylesBlock({ data, canEdit }: { data: InspectorElementData; canEdit: b
         </span>
       </div>
 
-      {/* Live CSS editor — applies on keystroke */}
-      <CustomCSSBlock canEdit={canEdit} />
+      {/* Live CSS editor — applies on keystroke, resets per locked element */}
+      <CustomCSSBlock canEdit={canEdit} data={data} />
 
       {/* CSS groups */}
       {filtered.length === 0 ? (
@@ -618,15 +618,31 @@ function cssValueColor(val: string, isChanged: boolean): string {
 }
 
 // ─── CssLineEditor — single editable line with prop+value autocomplete ─────────
-interface CssLine { id: number; prop: string; value: string }
+interface CssLine { id: number; prop: string; value: string; disabled: boolean }
+
+// Parse a raw style="" attribute string into CssLine array
+function parseInlineStyle(raw: string, startId: number): CssLine[] {
+  const lines: CssLine[] = []
+  let id = startId
+  const decls = raw.split(';').map(s => s.trim()).filter(Boolean)
+  for (const decl of decls) {
+    const colon = decl.indexOf(':')
+    if (colon < 1) continue
+    const prop  = decl.slice(0, colon).trim()
+    const value = decl.slice(colon + 1).trim()
+    if (prop && value) lines.push({ id: id++, prop, value, disabled: false })
+  }
+  return lines
+}
 
 function CssLineEditor({
-  line, autoFocusProp, onPropChange, onValueChange, onDelete, onAddAfter, applyLine,
+  line, autoFocusProp, onPropChange, onValueChange, onToggle, onDelete, onAddAfter, applyLine,
 }: {
   line:          CssLine
   autoFocusProp: boolean
   onPropChange:  (val: string) => void
   onValueChange: (val: string) => void
+  onToggle:      () => void
   onDelete:      () => void
   onAddAfter:    () => void
   applyLine:     (prop: string, value: string) => void
@@ -647,7 +663,6 @@ function CssLineEditor({
     onPropChange(raw)
     const q = raw.trim().toLowerCase()
     if (!q) { setPropSugs([]); return }
-    // Prefix matches first, then substring
     const prefix = CSS_PROPS.filter(p => p.startsWith(q))
     const sub    = CSS_PROPS.filter(p => !p.startsWith(q) && p.includes(q))
     setPropSugs([...prefix, ...sub].slice(0, 10))
@@ -715,12 +730,33 @@ function CssLineEditor({
     if (line.prop && line.value) applyLine(line.prop, line.value)
   }
 
-  const valueColor = cssValueColor(line.value, false)
+  const valueColor    = cssValueColor(line.value, false)
   const showPropDrop  = propFocus && propSugs.length > 0
   const showValDrop   = valFocus && valueSugs.length > 0
 
   return (
-    <div className="relative flex items-center gap-1 group" style={{ minHeight: 20, padding: '0 6px' }}>
+    <div
+      className="relative flex items-center gap-1 group"
+      style={{
+        minHeight: 20, padding: '0 6px',
+        opacity: line.disabled ? 0.45 : 1,
+      }}
+    >
+      {/* ── Checkbox — same as StyleRow ── */}
+      <button
+        onMouseDown={e => { e.preventDefault(); onToggle() }}
+        title={line.disabled ? 'Enable property' : 'Disable property'}
+        className="shrink-0 flex items-center justify-center transition-colors"
+        style={{ width: 10, height: 10, background: '#374151', border: 'none', cursor: 'pointer', borderRadius: 2, flexShrink: 0 }}
+        tabIndex={-1}
+      >
+        {!line.disabled && (
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+            <path d="M1.5 4L3.5 6L6.5 2" stroke="#6366f1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        )}
+      </button>
+
       {/* Prop input */}
       <div className="relative" style={{ flexShrink: 0 }}>
         <input
@@ -737,6 +773,7 @@ function CssLineEditor({
             color: '#64748b',
             width: Math.max(60, line.prop.length * 7 + 8),
             caretColor: '#818cf8',
+            textDecoration: line.disabled ? 'line-through' : 'none',
           }}
         />
         {/* Prop dropdown */}
@@ -779,7 +816,11 @@ function CssLineEditor({
           spellCheck={false}
           placeholder="value"
           className="w-full bg-transparent outline-none font-mono text-[11px] leading-5"
-          style={{ color: valueColor, caretColor: '#818cf8' }}
+          style={{
+            color: valueColor,
+            caretColor: '#818cf8',
+            textDecoration: line.disabled ? 'line-through' : 'none',
+          }}
         />
         {/* Color preview swatch if value is a colour */}
         {COLOR_RE.test(line.value) && (
@@ -816,7 +857,7 @@ function CssLineEditor({
         )}
       </div>
 
-      {/* Delete line button — on hover */}
+      {/* Delete — shown on row hover */}
       <button
         onMouseDown={e => { e.preventDefault(); onDelete() }}
         className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
@@ -833,12 +874,30 @@ function CssLineEditor({
 }
 
 // ─── CustomCSSBlock ───────────────────────────────────────────────────────────
-// DevTools-style line editor: per-line prop/value inputs, autocomplete,
-// arrow-key navigation, Tab to advance, colour coding — applies live.
-function CustomCSSBlock({ canEdit }: { canEdit: boolean }) {
-  const [lines, setLines] = useState<CssLine[]>([{ id: 0, prop: '', value: '' }])
-  const [nextId, setNextId] = useState(1)
-  const [newLineIdx, setNewLineIdx] = useState<number | null>(0)
+// Resets when the locked element changes (keyed on selector).
+// Pre-populates from the element's existing inline style attribute.
+// Checkbox toggles disable the property via the same unset !important mechanism.
+function CustomCSSBlock({ canEdit, data }: { canEdit: boolean; data: InspectorElementData }) {
+  // Derive a stable key from the locked element — forces full remount on change
+  const elementKey = `${data.tagName}#${data.id}.${data.classes[0] ?? ''}`
+
+  // Parse the element's existing inline styles as initial lines
+  const initialLines = useMemo(() => {
+    const parsed = parseInlineStyle(data.inlineStyle, 0)
+    // Always have at least one empty line to type into
+    return parsed.length > 0 ? parsed : [{ id: 0, prop: '', value: '', disabled: false }]
+  }, [data.inlineStyle])
+
+  const [lines,  setLines]  = useState<CssLine[]>(initialLines)
+  const [nextId, setNextId] = useState(initialLines.length)
+  const [newLineIdx, setNewLineIdx] = useState<number | null>(null)
+
+  // Reset when element changes
+  useEffect(() => {
+    setLines(initialLines)
+    setNextId(initialLines.length)
+    setNewLineIdx(null)
+  }, [elementKey, data.inlineStyle])
 
   function applyLine(prop: string, value: string) {
     if (!canEdit || !prop.trim() || !value.trim()) return
@@ -846,6 +905,28 @@ function CustomCSSBlock({ canEdit }: { canEdit: boolean }) {
       { source: 'devlens-panel', type: 'APPLY_STYLE', prop: prop.trim(), value: value.trim() },
       '*'
     )
+  }
+
+  function toggleLine(id: number) {
+    if (!canEdit) return
+    setLines(ls => ls.map(l => {
+      if (l.id !== id) return l
+      const nowDisabled = !l.disabled
+      if (nowDisabled) {
+        // Disable — inject unset !important via content script
+        window.parent.postMessage(
+          { source: 'devlens-panel', type: 'APPLY_STYLE', prop: l.prop, value: '' },
+          '*'
+        )
+      } else {
+        // Re-enable — remove suppression rule, restore cascade naturally
+        window.parent.postMessage(
+          { source: 'devlens-panel', type: 'APPLY_STYLE', prop: l.prop, value: l.value, restore: true },
+          '*'
+        )
+      }
+      return { ...l, disabled: nowDisabled }
+    }))
   }
 
   function updateProp(id: number, val: string) {
@@ -862,7 +943,7 @@ function CustomCSSBlock({ canEdit }: { canEdit: boolean }) {
     setLines(ls => {
       const idx = ls.findIndex(l => l.id === id)
       const next = [...ls]
-      next.splice(idx + 1, 0, { id: nid, prop: '', value: '' })
+      next.splice(idx + 1, 0, { id: nid, prop: '', value: '', disabled: false })
       return next
     })
     setNewLineIdx(nid)
@@ -870,10 +951,13 @@ function CustomCSSBlock({ canEdit }: { canEdit: boolean }) {
 
   function deleteLine(id: number) {
     setLines(ls => {
-      if (ls.length === 1) return [{ id: nextId, prop: '', value: '' }]
+      if (ls.length === 1) {
+        const nid = nextId
+        setNextId(n => n + 1)
+        return [{ id: nid, prop: '', value: '', disabled: false }]
+      }
       return ls.filter(l => l.id !== id)
     })
-    if (lines.length === 1) setNextId(n => n + 1)
   }
 
   if (!canEdit) return null
@@ -881,48 +965,21 @@ function CustomCSSBlock({ canEdit }: { canEdit: boolean }) {
   return (
     <div className="rounded overflow-visible"
          style={{ border: '1px solid #374151', background: '#111827' }}>
-      {/* Header hint */}
-      <div style={{ borderBottom: '1px solid #1e293b', padding: '3px 6px', display: 'flex', alignItems: 'center', gap: 4 }}>
-        <span style={{ fontSize: 9, fontFamily: 'monospace', color: '#475569' }}>
-          element.style
-        </span>
-        <span style={{ fontSize: 8, color: '#334155', marginLeft: 'auto' }}>
-          Tab · ↑↓ navigate
-        </span>
-      </div>
-
-      {/* Lines */}
       <div style={{ padding: '4px 0' }}>
-        {lines.map((line, i) => (
+        {lines.map(line => (
           <CssLineEditor
             key={line.id}
             line={line}
             autoFocusProp={newLineIdx === line.id}
             onPropChange={v => updateProp(line.id, v)}
             onValueChange={v => updateValue(line.id, v)}
+            onToggle={() => toggleLine(line.id)}
             onDelete={() => deleteLine(line.id)}
             onAddAfter={() => addAfter(line.id)}
             applyLine={applyLine}
           />
         ))}
       </div>
-
-      {/* Add line shortcut */}
-      <button
-        onMouseDown={e => { e.preventDefault(); addAfter(lines[lines.length - 1].id) }}
-        style={{
-          display: 'flex', width: '100%', alignItems: 'center', gap: 4,
-          padding: '3px 6px', borderTop: '1px solid #1e293b',
-          fontSize: 9, color: '#334155', background: 'transparent',
-          cursor: 'pointer', fontFamily: 'monospace',
-        }}
-        tabIndex={-1}
-      >
-        <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-          <path d="M4 1.5V6.5M1.5 4H6.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-        </svg>
-        new property
-      </button>
     </div>
   )
 }
