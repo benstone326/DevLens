@@ -6,15 +6,22 @@ DevLens is a Chrome DevTools alternative built for designers and design-engineer
 
 ---
 
-## Quick Start
+## Installation
+
+### Download (recommended)
+
+1. Go to [github.com/benstone326/DevLens/releases](https://github.com/benstone326/DevLens/releases) and download the latest release zip
+2. Unzip it
+3. In Chrome, go to `chrome://extensions` → enable **Developer mode** → click **Load unpacked** → select the unzipped folder
+
+### Build from source
 
 ```bash
 npm install
-npm run build     # one-time build
-npm run dev       # watch mode (rebuilds on file changes)
+npm run build
 ```
 
-Load in Chrome: `chrome://extensions` → **Developer mode** → **Load unpacked** → select `dist/`
+Then load `dist/` as an unpacked extension as above.
 
 ### Keyboard shortcuts
 
@@ -26,7 +33,7 @@ Load in Chrome: `chrome://extensions` → **Developer mode** → **Load unpacked
 
 ---
 
-## Scripts
+## Dev Scripts
 
 | Script | Description |
 |---|---|
@@ -53,6 +60,7 @@ Load in Chrome: `chrome://extensions` → **Developer mode** → **Load unpacked
 | 1 | Foundation, popup, panel, messaging, shortcuts | ✅ Done |
 | 2 | Inspector + Color Eyedropper + Token Extractor | ✅ Done |
 | 2b | Inspector redesign: Relations nav, TW bar, Checkbox toggle, A11y, Collapsible groups | ✅ Done |
+| 2c | Per-property CSS line editor: autocomplete, color swatches, arrow-key nav, inline disable/restore | ✅ Done |
 | 3 | AI Bridge — one-click "explain/convert/fix" via Claude/ChatGPT | ⏳ Next |
 | 4 | Copy as Tailwind (per-element CSS→TW conversion) | ⏳ Planned |
 | 5 | Font Download | ⏳ Planned |
@@ -83,21 +91,32 @@ Load in Chrome: `chrome://extensions` → **Developer mode** → **Load unpacked
 devlens/
 ├── src/
 │   ├── background/index.ts        # Service worker
-│   ├── content/index.ts           # Injected into pages — panel mount + hardened message bridge
-│   ├── popup/                     # Extension popup
-│   ├── panel/Panel.tsx            # Side panel shell — nav sidebar + tool router
+│   ├── content/
+│   │   ├── index.ts               # Injected into pages — panel mount, drag system, hardened message bridge
+│   │   └── content.css            # Injected styles
+│   ├── popup/
+│   │   ├── Popup.tsx
+│   │   ├── index.tsx
+│   │   └── popup.css
+│   ├── panel/
+│   │   ├── Panel.tsx              # Side panel shell — nav sidebar + tool router + drag/float
+│   │   ├── index.tsx
+│   │   └── panel.css
 │   ├── tools/
 │   │   ├── inspector/
-│   │   │   ├── index.ts           # extractElementData, Tailwind detection, sibling extraction
-│   │   │   └── InspectorPanel.tsx # Full inspector UI
+│   │   │   ├── index.ts           # extractElementData, getMatchedRules, Tailwind detection, sibling/ancestor extraction
+│   │   │   └── InspectorPanel.tsx # Full inspector UI — styles, box model, relations, a11y, custom CSS editor
 │   │   ├── eyedropper/
+│   │   │   └── EyedropperPanel.tsx
 │   │   └── tokens/
+│   │       ├── index.ts           # Token extraction logic
+│   │       ├── TokensPanel.tsx
+│   │       └── exporters.ts
 │   └── shared/
-│       ├── theme.ts
-│       ├── messaging.ts
+│       ├── theme.ts               # Design tokens (S)
+│       ├── messaging.ts           # postToParent helper
 │       ├── clipboard.ts
-│       └── hooks.ts
-├── .gitignore                     # Excludes node_modules/, dist/
+│       └── hooks.ts               # useHover
 ├── vite.config.ts
 └── package.json
 ```
@@ -108,10 +127,22 @@ devlens/
 
 | Type | Direction | Description |
 |---|---|---|
-| `NAVIGATE_TO` | panel → content | direction: `ancestor \| child \| sibling`, delta/steps/childIndex |
-| `LOCK_ELEMENT` / `UNLOCK_ELEMENT` | panel → content | Lock current hovered element |
-| `APPLY_STYLE` | panel → content | prop + value (empty string disables) |
+| `PANEL_READY` | content → panel | Panel iframe has loaded and is ready to receive messages |
+| `ACTIVATE_TOOL` | content → panel | Instruct panel to switch to a specific tool |
+| `PANEL_FLOATING` | content → panel | Notify panel of floating/docked state change |
+| `INSPECTOR_DATA` | content → panel | Full `InspectorElementData` payload for locked element |
+| `INSPECTOR_LOCKED` / `INSPECTOR_UNLOCKED` | content → panel | Lock state change |
+| `TOKENS_DATA` | content → panel | Extracted design token payload |
+| `START_INSPECTOR` / `STOP_INSPECTOR` | panel → content | Start or stop the inspector overlay |
+| `NAVIGATE_TO` | panel → content | `direction: ancestor \| child \| sibling`, with `delta` / `steps` / `childIndex` |
+| `LOCK_ELEMENT` / `UNLOCK_ELEMENT` | panel → content | Lock the currently hovered element |
+| `APPLY_STYLE` | panel → content | `prop` + `value` — empty string disables, `restore: true` removes suppression rule, `reapply: true` re-injects inline value |
+| `REMOVE_STYLE` | panel → content | Remove a single property from inline style and disable-sheet |
+| `RESET_STYLES` | panel → content | Restore element to its original style attribute |
 | `APPLY_OUTERHTML` | panel → content | Replace element's outer HTML |
 | `SET_BOX_MODE` | panel → content | Toggle box model overlay |
-| `INSPECTOR_DATA` | content → panel | Full `InspectorElementData` payload |
-| `INSPECTOR_LOCKED` / `INSPECTOR_UNLOCKED` | content → panel | Lock state change |
+| `EXTRACT_TOKENS` | panel → content | Trigger full-page token extraction |
+| `DRAG_START` / `DRAG_END` | panel → content | Panel drag — transitions to floating mode on first drag |
+| `SNAP_BACK` | panel → content | Return panel from floating to docked position |
+| `CLOSE_PANEL` | panel → content | Close and hide the panel |
+| `OPEN_URL` | panel → content | Open a URL in a new tab |
