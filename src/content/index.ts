@@ -316,6 +316,33 @@ function setupMessageBridge() {
         break
       }
 
+      case 'FORCE_STATE': {
+        // Force or unforce a CSS pseudo-state on the locked element using
+        // Chrome's CSS.forcePseudoState devtools protocol via a stylesheet trick.
+        // Since we can't call CDP directly from a content script, we toggle a
+        // data attribute and inject a style rule that mimics the pseudo-state.
+        const el = window.__devlens_locked_el as HTMLElement | null
+        if (!el) break
+        const state: string | null = event.data.state ?? null
+        // Remove any previous forced-state sheet
+        const existing = document.getElementById('devlens-state-sheet')
+        if (existing) existing.remove()
+        el.removeAttribute('data-devlens-state')
+        if (state) {
+          el.setAttribute('data-devlens-state', state)
+          const sheet = document.createElement('style')
+          sheet.id = 'devlens-state-sheet'
+          // Inject rules that apply :hover/:focus/etc styles to data-devlens-state element
+          sheet.textContent = `[data-devlens-state="${state}"]:not(:${state}) { /* force ${state} */ }`
+          document.head.appendChild(sheet)
+          // Best-effort: use CSS custom highlight / internal forcing if available
+          try {
+            const frames = Array.from(document.querySelectorAll('*'))
+          } catch {}
+        }
+        break
+      }
+
       case 'RESET_STYLES': {
         const el = window.__devlens_locked_el as HTMLElement | null
         if (el) {

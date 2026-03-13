@@ -406,6 +406,41 @@ function A11yBlock({ data }: { data: InspectorElementData }) {
   )
 }
 
+// ─── StateSelector ────────────────────────────────────────────────────────────
+const PSEUDO_STATES = ['hover', 'focus', 'active', 'focus-visible', 'visited', 'disabled'] as const
+type PseudoState = typeof PSEUDO_STATES[number]
+
+function StateSelector({ active, onChange }: { active: PseudoState | null; onChange: (s: PseudoState | null) => void }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+      <span style={{ fontSize: 8, fontFamily: 'monospace', color: '#475569', textTransform: 'uppercase',
+                     letterSpacing: '0.08em', flexShrink: 0 }}>:state</span>
+      {PSEUDO_STATES.map(state => {
+        const isActive = active === state
+        return (
+          <button
+            key={state}
+            onClick={() => onChange(isActive ? null : state)}
+            style={{
+              fontFamily:   'monospace',
+              fontSize:     9,
+              padding:      '1px 5px',
+              borderRadius: 3,
+              border:       `1px solid ${isActive ? '#6366f1' : '#374151'}`,
+              background:   isActive ? '#6366f122' : 'transparent',
+              color:        isActive ? '#818cf8' : '#475569',
+              cursor:       'pointer',
+              lineHeight:   '16px',
+            }}
+          >
+            :{state}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 // ─── StylesBlock ──────────────────────────────────────────────────────────────
 function StylesBlock({ data, canEdit }: { data: InspectorElementData; canEdit: boolean }) {
   const { computedStyles: styles, cssVars, hasTailwind, twClasses } = data
@@ -432,6 +467,7 @@ function StylesBlock({ data, canEdit }: { data: InspectorElementData; canEdit: b
   const [changed,  setChanged]  = useState<Record<string, boolean>>({})
   const [disabled, setDisabled] = useState<Record<string, boolean>>(() => initDisabled)
   const [query,    setQuery]    = useState('')
+  const [pseudoState, setPseudoState] = useState<PseudoState | null>(null)
 
   useEffect(() => {
     const { initValues, initDisabled } = initFromStyles(styles)
@@ -439,6 +475,7 @@ function StylesBlock({ data, canEdit }: { data: InspectorElementData; canEdit: b
     setChanged({})
     setDisabled(initDisabled)
     setQuery('')
+    setPseudoState(null)
   }, [styles])
 
   function handleChange(prop: string, val: string) {
@@ -507,6 +544,18 @@ function StylesBlock({ data, canEdit }: { data: InspectorElementData; canEdit: b
 
       {/* TW classes bar */}
       <TailwindBar hasTailwind={hasTailwind} twClasses={twClasses} />
+
+      {/* State selector */}
+      <div style={{ padding: '4px 8px', borderRadius: 4, background: '#111827', border: '1px solid #374151' }}>
+        <StateSelector
+          active={pseudoState}
+          onChange={s => {
+            setPseudoState(s)
+            // Tell content script to force/unforce pseudo-state on locked element
+            postToParent({ type: 'FORCE_STATE', state: s })
+          }}
+        />
+      </div>
 
       {/* Element style header */}
       <div className="flex items-center justify-between px-3 py-1 text-[9px] font-semibold tracking-widest uppercase"
@@ -1120,38 +1169,270 @@ function HTMLBlock({ html, canEdit }: { html: string; canEdit: boolean }) {
   )
 }
 
+// ─── BoxEdgeInput ─────────────────────────────────────────────────────────────
+function BoxEdgeInput({ value, prop, color, canEdit, horizontal }: {
+  value: number; prop: string; color: string; canEdit: boolean; horizontal: boolean
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft,   setDraft]   = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  const display  = value === 0 ? '–' : `${Math.round(value)}`
+
+  function startEdit() {
+    if (!canEdit) return
+    setDraft(`${Math.round(value)}`)
+    setEditing(true)
+    setTimeout(() => inputRef.current?.select(), 0)
+  }
+
+  function commit() {
+    setEditing(false)
+    const num = parseFloat(draft)
+    if (!isNaN(num)) postToParent({ type: 'APPLY_STYLE', prop, value: `${num}px` })
+  }
+
+  const style: React.CSSProperties = {
+    fontFamily:  'monospace',
+    fontSize:    10,
+    fontWeight:  600,
+    color:       value === 0 ? '#334155' : color,
+    cursor:      canEdit ? 'text' : 'default',
+    background:  editing ? '#1e293b' : 'transparent',
+    border:      editing ? `1px solid ${color}55` : '1px solid transparent',
+    borderRadius: 3,
+    padding:     '1px 3px',
+    outline:     'none',
+    width:       horizontal ? 32 : 28,
+    textAlign:   'center',
+    minWidth:    0,
+  }
+
+  return editing ? (
+    <input
+      ref={inputRef}
+      value={draft}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false) }}
+      style={style}
+    />
+  ) : (
+    <span onClick={startEdit} style={style}>{display}</span>
+  )
+}
+
+// ─── RadiusCornerInput ────────────────────────────────────────────────────────
+function RadiusCornerInput({ prop, value, color, canEdit, corner }: {
+  prop: string; value: string; color: string; canEdit: boolean
+  corner: 'tl' | 'tr' | 'br' | 'bl'
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft,   setDraft]   = useState('')
+  const inputRef  = useRef<HTMLInputElement>(null)
+  const numVal    = parseFloat(value) || 0
+  const display   = numVal === 0 ? '0' : `${Math.round(numVal)}`
+
+  // Corner SVG indicator
+  const corners: Record<string, string> = {
+    tl: 'M 6 2 L 2 2 L 2 6', tr: 'M 2 2 L 6 2 L 6 6',
+    br: 'M 2 6 L 6 6 L 6 2', bl: 'M 6 6 L 2 6 L 2 2',
+  }
+
+  function startEdit() {
+    if (!canEdit) return
+    setDraft(`${Math.round(numVal)}`)
+    setEditing(true)
+    setTimeout(() => inputRef.current?.select(), 0)
+  }
+
+  function commit() {
+    setEditing(false)
+    const num = parseFloat(draft)
+    if (!isNaN(num)) postToParent({ type: 'APPLY_STYLE', prop, value: `${num}px` })
+  }
+
+  const pos: Record<string, React.CSSProperties> = {
+    tl: { top: 2,    left: 2 },
+    tr: { top: 2,    right: 2 },
+    br: { bottom: 2, right: 2 },
+    bl: { bottom: 2, left: 2 },
+  }
+
+  return (
+    <div style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, ...pos[corner] }}>
+      <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+        <path d={corners[corner]} stroke={numVal > 0 ? color : '#334155'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      </svg>
+      {editing ? (
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false) }}
+          style={{ width: 20, fontFamily: 'monospace', fontSize: 8, textAlign: 'center',
+                   background: '#1e293b', border: `1px solid ${color}55`, borderRadius: 2,
+                   color, outline: 'none', padding: '0 1px' }}
+        />
+      ) : (
+        <span
+          onClick={startEdit}
+          style={{ fontFamily: 'monospace', fontSize: 8, color: numVal > 0 ? color : '#334155',
+                   cursor: canEdit ? 'text' : 'default', lineHeight: 1 }}
+        >
+          {display}
+        </span>
+      )}
+    </div>
+  )
+}
+
 // ─── BoxTab ────────────────────────────────────────────────────────────────────
 function BoxTab({ data }: { data: InspectorElementData }) {
-  const bm  = data.boxModel
-  const fmt = (n: number) => `${Math.round(n)}px`
-  const rows = [
-    { label: 'Margin',  t: bm.marginTop,  r: bm.marginRight,  b: bm.marginBottom,  l: bm.marginLeft,  color: '#f59e0b', bg: '#f59e0b0e' },
-    { label: 'Border',  t: bm.borderTop,  r: bm.borderRight,  b: bm.borderBottom,  l: bm.borderLeft,  color: '#14b8a6', bg: '#14b8a614' },
-    { label: 'Padding', t: bm.paddingTop, r: bm.paddingRight, b: bm.paddingBottom, l: bm.paddingLeft, color: '#10b981', bg: '#10b98114' },
+  const bm      = data.boxModel
+  const cs      = data.computedStyles
+  const canEdit = true
+
+  // Border radius values from computed styles
+  const radii = {
+    tl: cs['border-top-left-radius']     ?? '0px',
+    tr: cs['border-top-right-radius']    ?? '0px',
+    br: cs['border-bottom-right-radius'] ?? '0px',
+    bl: cs['border-bottom-left-radius']  ?? '0px',
+  }
+
+  // Layer config
+  const MARGIN_COL  = '#f59e0b'
+  const BORDER_COL  = '#14b8a6'
+  const PADDING_COL = '#10b981'
+  const CONTENT_COL = '#818cf8'
+
+  // Shared edge style
+  const edgeWrap = (justify: 'center' | 'flex-start' | 'flex-end' = 'center'): React.CSSProperties => ({
+    display: 'flex', alignItems: 'center', justifyContent: justify, pointerEvents: 'none',
+  })
+
+  // Each layer is a nested absolute box; we build them with padding to create the "shell" look
+  // Layer padding values (px) — visual spacing between shells
+  const LP = 22 // label+edge height
+
+  const tableRows = [
+    { label: 'Margin',  t: bm.marginTop,  r: bm.marginRight,  b: bm.marginBottom,  l: bm.marginLeft,  color: MARGIN_COL,  bg: '#f59e0b0e' },
+    { label: 'Border',  t: bm.borderTop,  r: bm.borderRight,  b: bm.borderBottom,  l: bm.borderLeft,  color: BORDER_COL,  bg: '#14b8a614' },
+    { label: 'Padding', t: bm.paddingTop, r: bm.paddingRight, b: bm.paddingBottom, l: bm.paddingLeft, color: PADDING_COL, bg: '#10b98114' },
   ]
-  return (
-    <div className="p-3 flex flex-col gap-2">
-      <div className="rounded px-4 py-3 flex items-center justify-between" style={{ background: '#6366f118', border: '1px solid #6366f133' }}>
-        <span className="text-[10px]" style={{ color: S.sub }}>content</span>
-        <span className="text-sm font-mono font-bold" style={{ color: '#818cf8' }}>{Math.round(bm.width)} × {Math.round(bm.height)}</span>
-        <span className="text-[10px]" style={{ color: S.sub }}>{fmt(bm.left)}, {fmt(bm.top)}</span>
-      </div>
-      <div className="rounded overflow-hidden" style={{ border: `1px solid ${S.border}` }}>
-        <div className="grid text-[9px] px-3 py-1.5"
-             style={{ gridTemplateColumns: '64px 1fr 1fr 1fr 1fr', color: '#334155', borderBottom: `1px solid ${S.border}`, background: S.surface }}>
-          <span/><span className="text-center">top</span><span className="text-center">right</span>
-          <span className="text-center">bottom</span><span className="text-center">left</span>
+
+  function Layer({ color, label, top, right, bottom, left, marginProp, children }: {
+    color: string; label: string
+    top: number; right: number; bottom: number; left: number
+    marginProp: { t: string; r: string; b: string; l: string }
+    children?: React.ReactNode
+  }) {
+    return (
+      <div style={{
+        position: 'relative',
+        background: `${color}10`,
+        border: `1px solid ${color}33`,
+        borderRadius: 4,
+        padding: `${LP}px ${LP}px`,
+        display: 'flex', flexDirection: 'column',
+      }}>
+        {/* Label */}
+        <span style={{
+          position: 'absolute', top: 4, left: 6,
+          fontFamily: 'monospace', fontSize: 8, fontWeight: 700,
+          color: `${color}99`, textTransform: 'uppercase', letterSpacing: '0.08em',
+          pointerEvents: 'none',
+        }}>{label}</span>
+
+        {/* Top edge */}
+        <div style={{ position: 'absolute', top: 0, left: LP, right: LP, height: LP, ...edgeWrap() }}>
+          <BoxEdgeInput value={top}    prop={marginProp.t} color={color} canEdit={canEdit} horizontal />
         </div>
-        {rows.map(row => (
-          <div key={row.label} className="grid items-center px-3 py-1.5 text-[11px] font-mono"
-               style={{ gridTemplateColumns: '64px 1fr 1fr 1fr 1fr', background: row.bg, borderBottom: `1px solid ${S.border}` }}>
-            <span className="text-[9px] font-sans font-semibold tracking-wide" style={{ color: row.color }}>{row.label.toUpperCase()}</span>
+        {/* Bottom edge */}
+        <div style={{ position: 'absolute', bottom: 0, left: LP, right: LP, height: LP, ...edgeWrap() }}>
+          <BoxEdgeInput value={bottom} prop={marginProp.b} color={color} canEdit={canEdit} horizontal />
+        </div>
+        {/* Left edge */}
+        <div style={{ position: 'absolute', left: 0, top: LP, bottom: LP, width: LP, ...edgeWrap() }}>
+          <BoxEdgeInput value={left}   prop={marginProp.l} color={color} canEdit={canEdit} horizontal={false} />
+        </div>
+        {/* Right edge */}
+        <div style={{ position: 'absolute', right: 0, top: LP, bottom: LP, width: LP, ...edgeWrap() }}>
+          <BoxEdgeInput value={right}  prop={marginProp.r} color={color} canEdit={canEdit} horizontal={false} />
+        </div>
+
+        {children}
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+      {/* ── Nested box model diagram ── */}
+      <Layer color={MARGIN_COL} label="margin"
+        top={bm.marginTop} right={bm.marginRight} bottom={bm.marginBottom} left={bm.marginLeft}
+        marginProp={{ t: 'margin-top', r: 'margin-right', b: 'margin-bottom', l: 'margin-left' }}>
+
+        <Layer color={BORDER_COL} label="border"
+          top={bm.borderTop} right={bm.borderRight} bottom={bm.borderBottom} left={bm.borderLeft}
+          marginProp={{ t: 'border-top-width', r: 'border-right-width', b: 'border-bottom-width', l: 'border-left-width' }}>
+
+          {/* Border radius corners on the border layer */}
+          <RadiusCornerInput corner="tl" prop="border-top-left-radius"     value={radii.tl} color={BORDER_COL} canEdit={canEdit} />
+          <RadiusCornerInput corner="tr" prop="border-top-right-radius"    value={radii.tr} color={BORDER_COL} canEdit={canEdit} />
+          <RadiusCornerInput corner="br" prop="border-bottom-right-radius" value={radii.br} color={BORDER_COL} canEdit={canEdit} />
+          <RadiusCornerInput corner="bl" prop="border-bottom-left-radius"  value={radii.bl} color={BORDER_COL} canEdit={canEdit} />
+
+          <Layer color={PADDING_COL} label="padding"
+            top={bm.paddingTop} right={bm.paddingRight} bottom={bm.paddingBottom} left={bm.paddingLeft}
+            marginProp={{ t: 'padding-top', r: 'padding-right', b: 'padding-bottom', l: 'padding-left' }}>
+
+            {/* Content box */}
+            <div style={{
+              background: `${CONTENT_COL}18`, border: `1px solid ${CONTENT_COL}33`,
+              borderRadius: 3, padding: '10px 8px',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+            }}>
+              <span style={{ fontFamily: 'monospace', fontSize: 8, color: `${CONTENT_COL}80`,
+                             textTransform: 'uppercase', letterSpacing: '0.08em' }}>content</span>
+              <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: CONTENT_COL }}>
+                {Math.round(bm.width)} × {Math.round(bm.height)}
+              </span>
+            </div>
+
+          </Layer>
+        </Layer>
+      </Layer>
+
+      {/* ── Existing table ── */}
+      <div style={{ borderRadius: 4, overflow: 'hidden', border: `1px solid ${S.border}` }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr 1fr 1fr 1fr',
+                      fontSize: 9, padding: '4px 12px', color: '#334155',
+                      borderBottom: `1px solid ${S.border}`, background: S.surface }}>
+          <span /><span style={{ textAlign: 'center' }}>top</span>
+          <span style={{ textAlign: 'center' }}>right</span>
+          <span style={{ textAlign: 'center' }}>bottom</span>
+          <span style={{ textAlign: 'center' }}>left</span>
+        </div>
+        {tableRows.map(row => (
+          <div key={row.label}
+               style={{ display: 'grid', gridTemplateColumns: '64px 1fr 1fr 1fr 1fr',
+                        alignItems: 'center', padding: '4px 12px',
+                        fontFamily: 'monospace', fontSize: 11,
+                        background: row.bg, borderBottom: `1px solid ${S.border}` }}>
+            <span style={{ fontSize: 9, fontFamily: 'sans-serif', fontWeight: 600,
+                           letterSpacing: '0.05em', color: row.color }}>{row.label.toUpperCase()}</span>
             {[row.t, row.r, row.b, row.l].map((v, i) => (
-              <span key={i} className="text-center" style={{ color: v === 0 ? '#334155' : row.color }}>{fmt(v)}</span>
+              <span key={i} style={{ textAlign: 'center', color: v === 0 ? '#334155' : row.color }}>
+                {Math.round(v)}px
+              </span>
             ))}
           </div>
         ))}
       </div>
+
     </div>
   )
 }
